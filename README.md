@@ -22,3 +22,7 @@ The UI still contains workflows that can modify Ozon data or contact buyers. Rea
 The first stage establishes a Next.js App Router shell and a same-origin, origin-checked API proxy while preserving all existing business behavior. The dashboard is hosted as a legacy asset for now; its screens and API handlers can be migrated incrementally with the existing Node tests as regression coverage.
 
 Run `npm run test:legacy` to execute the migrated backend tests.
+
+## Vercel deployment
+
+Connect the Neon database to the Vercel project so it provides `DATABASE_URL`. Set `DASHBOARD_USERNAME` and `DASHBOARD_PASSWORD` as Production environment variables to protect the dashboard and its APIs with browser sign-in. Redeploy after changing environment variables. The API creates its Neon state table automatically on first use.

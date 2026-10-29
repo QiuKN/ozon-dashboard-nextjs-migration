@@ -6,9 +6,12 @@ const { AsyncLocalStorage } = require('node:async_hooks');
 const { createPinduoduoSdk } = require('./pinduoduo-sdk-adapter');
 
 const ROOT = __dirname;
-const ENV_PATH = path.join(ROOT, '.env');
-const SHOP_REGISTRY_PATH = path.join(ROOT, '.ozon-shops.json');
-const SHOP_DATA_ROOT = path.join(ROOT, '.store-data');
+// Request-scoped roots let the same business handlers use temporary files backed by Neon in serverless deployments.
+const requestDataRoot = new AsyncLocalStorage();
+const dataRoot = () => requestDataRoot.getStore() || ROOT;
+const envPath = () => path.join(dataRoot(), '.env');
+const shopRegistryPath = () => path.join(dataRoot(), '.ozon-shops.json');
+const shopDataRoot = () => path.join(dataRoot(), '.store-data');
 const storeContext = new AsyncLocalStorage();
 const DEFAULT_PICKUP_MESSAGE = 'Здравствуйте! Ваш заказ {order_number} уже прибыл в пункт выдачи Ozon. Пожалуйста, заберите его до даты, указанной в приложении Ozon.';
 const ORDER_LOOKBACK_DAYS = 90;
@@ -56,9 +59,10 @@ const STATIC_FILES = new Map([
 ]);
 
 function readEnvFile() {
-  if (!fs.existsSync(ENV_PATH)) return {};
+  const filePath = envPath();
+  if (!fs.existsSync(filePath)) return {};
   const parsed = {};
-  for (const line of fs.readFileSync(ENV_PATH, 'utf8').split(/\r?\n/)) {
+  for (const line of fs.readFileSync(filePath, 'utf8').split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
     if (!match || match[1].startsWith('#')) continue;
     parsed[match[1]] = match[2].replace(/^(['"])(.*)\1$/, '$2');
@@ -71,19 +75,20 @@ function stableShopId(clientId) {
 }
 
 function saveShopRegistry() {
-  const temporaryPath = `${SHOP_REGISTRY_PATH}.tmp`;
+  const targetPath = shopRegistryPath();
+  const temporaryPath = `${targetPath}.tmp`;
   fs.writeFileSync(temporaryPath, JSON.stringify({
     version: 1,
     activeShopId,
     shops: shopRegistry || []
   }, null, 2), { mode: 0o600 });
-  fs.renameSync(temporaryPath, SHOP_REGISTRY_PATH);
+  fs.renameSync(temporaryPath, targetPath);
 }
 
 function loadShopRegistry() {
   if (shopRegistry) return shopRegistry;
   try {
-    const stored = JSON.parse(fs.readFileSync(SHOP_REGISTRY_PATH, 'utf8'));
+    const stored = JSON.parse(fs.readFileSync(shopRegistryPath(), 'utf8'));
     shopRegistry = Array.isArray(stored?.shops) ? stored.shops.filter(shop =>
       shop && typeof shop.id === 'string' && typeof shop.name === 'string'
       && typeof shop.clientId === 'string' && typeof shop.apiKey === 'string'
@@ -157,8 +162,8 @@ function currentStoreRuntime() {
 
 function storePath(filename) {
   const shop = findShop();
-  if (!shop || shop.legacyStorage) return path.join(ROOT, filename);
-  const directory = path.join(SHOP_DATA_ROOT, crypto.createHash('sha256').update(shop.id).digest('hex').slice(0, 24));
+  if (!shop || shop.legacyStorage) return path.join(/*turbopackIgnore: true*/ dataRoot(), filename);
+  const directory = path.join(shopDataRoot(), crypto.createHash('sha256').update(shop.id).digest('hex').slice(0, 24));
   return path.join(directory, filename);
 }
 
@@ -249,7 +254,7 @@ function writeEnvFile(values) {
     `PORT=${next.port}`,
     `HOST=${next.host}`
   ];
-  fs.writeFileSync(ENV_PATH, `${lines.join('\n')}\n`, { mode: 0o600 });
+  fs.writeFileSync(envPath(), `${lines.join('\n')}\n`, { mode: 0o600 });
 }
 
 function preserveConfiguredSecrets(values, cfg = config()) {
@@ -340,7 +345,7 @@ function loadOzonEndpointRateLimits() {
   if (endpointRateLimitsByStore.has(shopId)) return endpointRateLimitsByStore.get(shopId);
   let limits = {};
   try {
-    const stored = JSON.parse(fs.readFileSync(storePath('.ozon-rate-limits.json'), 'utf8'));
+    const stored = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ storePath('.ozon-rate-limits.json'), 'utf8'));
     limits = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
   } catch {
     limits = {};
@@ -1113,8 +1118,8 @@ function isProductAnalyticsSnapshot(value) {
 function readProductAnalyticsCache() {
   try {
     const cachePath = storePath('.product-analytics-cache.json');
-    if (!fs.existsSync(cachePath)) return null;
-    const stored = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+    if (!fs.existsSync(/*turbopackIgnore: true*/ cachePath)) return null;
+    const stored = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ cachePath, 'utf8'));
     const raw = stored?.data ?? stored;
     if (!raw || !Array.isArray(raw.rows)) return null;
     const data = {
@@ -2022,8 +2027,8 @@ function readPickupState() {
   const defaults = { autoEnabled: false, template: DEFAULT_PICKUP_MESSAGE, records: {} };
   try {
     const statePath = storePath('.pickup-reminders.json');
-    if (!fs.existsSync(statePath)) return defaults;
-    const stored = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    if (!fs.existsSync(/*turbopackIgnore: true*/ statePath)) return defaults;
+    const stored = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ statePath, 'utf8'));
     return {
       autoEnabled: stored.autoEnabled === true,
       template: typeof stored.template === 'string' && stored.template.trim() ? stored.template : DEFAULT_PICKUP_MESSAGE,
@@ -2165,8 +2170,8 @@ function pickupUnavailableChannels(snapshot) {
 function readSnapshotCache(fileName, validate) {
   try {
     const filePath = storePath(fileName);
-    if (!fs.existsSync(filePath)) return null;
-    const stored = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (!fs.existsSync(/*turbopackIgnore: true*/ filePath)) return null;
+    const stored = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ filePath, 'utf8'));
     const data = stored?.data ?? stored;
     return validate(data) ? { data, cachedAt: Number(stored?.cachedAt) || 0 } : null;
   } catch {
@@ -3199,10 +3204,13 @@ async function runAutoPickupRemindersForAllShops() {
 }
 
 const AUTO_REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const autoReminderTimer = setInterval(() => {
-  runAutoPickupRemindersForAllShops().catch(error => console.error(`到货提醒自动检查失败：${error.message}`));
-}, AUTO_REMINDER_INTERVAL_MS);
-autoReminderTimer.unref();
+// Serverless functions cannot keep daily reminder timers alive between requests.
+if (process.env.VERCEL !== '1') {
+  const autoReminderTimer = setInterval(() => {
+    runAutoPickupRemindersForAllShops().catch(error => console.error(`到货提醒自动检查失败：${error.message}`));
+  }, AUTO_REMINDER_INTERVAL_MS);
+  autoReminderTimer.unref();
+}
 
 function safeError(error) {
   return { error: error.message || '发生未知错误' };
@@ -4141,7 +4149,27 @@ const cfg = config();
 for (const shop of loadShopRegistry()) {
   storeContext.run({ shopId: shop.id }, () => seedRateLimitFromRecentSnapshots());
 }
-http.createServer(route).listen(cfg.port, cfg.host, () => {
-  console.log(`Ozon 数据看板已启动：http://${cfg.host}:${cfg.port}`);
-  console.log('API 凭据保存在本机 .env 文件中；仅在请求 Ozon Seller API 时用于认证。');
-});
+
+function withRequestDataRoot(root, handler) {
+  return requestDataRoot.run(root, handler);
+}
+
+function resetRequestCaches() {
+  shopRegistry = null;
+  activeShopId = '';
+  endpointRateLimitsByStore.clear();
+  storeRuntimeById.clear();
+}
+
+function startServer(port = cfg.port, host = cfg.host) {
+  return http.createServer(route).listen(port, host, () => {
+    console.log(`Ozon 数据看板已启动：http://${host}:${port}`);
+    console.log('API 凭据保存在本机 .env 文件中；仅在请求 Ozon Seller API 时用于认证。');
+  });
+}
+
+module.exports = { route, withRequestDataRoot, resetRequestCaches, startServer };
+
+if (require.main === module) {
+  startServer();
+}

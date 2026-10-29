@@ -1,2 +1,2 @@
 process.env.PORT ||= "8788";
-require("./server.js");
+require("./server.js").startServer();
