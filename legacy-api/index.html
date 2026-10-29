@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7fb">
+  <title>Ozon 商家数据台</title>
+  <link rel="stylesheet" href="/legacy/styles.css?v=20261029-balance-alert">
+  <script src="/legacy/app.js?v=20261029-balance-alert" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="Ozon 商家数据台首页">
+        <span class="brand-mark">O</span><span>Seller Studio<small>OZON OPERATIONS</small></span>
+      </a>
+      <div class="nav-label">商品</div>
+      <button class="nav-item active" data-view="products"><span class="nav-icon">▦</span>商品与库存</button>
+      <button class="nav-item" data-view="pricing-promotions"><span class="nav-icon">◇</span>价格与促销</button>
+      <button class="nav-item" data-view="product-profit"><span class="nav-icon">￥</span>商品利润</button>
+      <button class="nav-item" data-view="add"><span class="nav-icon">＋</span>添加商品</button>
+      <button class="nav-item" data-view="rich-content"><span class="nav-icon">✦</span>富内容</button>
+      <div class="nav-label nav-label-spaced">订单履约</div>
+      <button class="nav-item" data-view="orders"><span class="nav-icon">▤</span>订单</button>
+      <button class="nav-item" data-view="pickup"><span class="nav-icon">⌂</span>到货提醒</button>
+      <button class="nav-item" data-view="domestic-express"><span class="nav-icon">⌁</span>国内快递</button>
+      <button class="nav-item" data-view="sourcing" hidden><span class="nav-icon">⌕</span>找货源</button>
+      <div class="sidebar-bottom">
+        <div class="connection-card"><span class="status-dot" id="statusDot"></span><div><strong id="connectionTitle">尚未连接</strong><small id="connectionDetail">配置卖家 API</small></div></div>
+        <button class="nav-item" id="settingsButton"><span class="nav-icon">⚙</span>API 设置</button>
+        <div class="sidebar-foot">数据直接来自 Ozon Seller API<br>凭据仅保存在本机</div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong id="breadcrumbCurrent">商品与库存</strong></div><div class="top-actions"><div class="shop-controls"><label class="sr-only" for="shopSelector">当前店铺</label><select id="shopSelector" aria-label="切换店铺" disabled><option value="">加载店铺...</option></select><button class="shop-add-button" id="addShopButton" type="button" aria-label="添加店铺" title="添加店铺">＋</button></div><div class="auto-refresh-controls" aria-label="自动刷新设置"><span class="auto-refresh-status" id="autoRefreshStatus">自动刷新：30 分钟</span><select id="autoRefreshInterval" aria-label="选择自动刷新间隔"><option value="300000">5 分钟</option><option value="600000">10 分钟</option><option value="1800000" selected>30 分钟</option></select><button class="auto-refresh-toggle" id="autoRefreshToggle" type="button">暂停</button></div><span class="date-chip" id="todayLabel"></span><button class="avatar" title="本地工作区">商</button></div></header>
+
+      <section class="view active" id="productsView">
+        <div class="page-heading"><div><div class="eyebrow">SELLER OVERVIEW</div><h1>商品与库存</h1><p>集中查看商品状态、库存数量与当前售价。</p></div><div class="heading-actions"><button class="button button-secondary" id="refreshButton"><span class="refresh-icon">↻</span>刷新数据</button><button class="button button-primary" id="addProductTop"><span>＋</span>添加商品</button></div></div>
+
+        <div class="metric-grid product-metrics">
+          <article class="metric-card"><div class="metric-label">展示总数 <span class="metric-icon blue">◉</span></div><div class="metric-value" id="displayCountTotal">—</div><div class="metric-note" id="displayCountNote">Ozon 销售分析 · 近 7 天</div></article>
+          <article class="metric-card"><div class="metric-label">商品总数 <span class="metric-icon violet">▦</span></div><div class="metric-value" id="totalProducts">—</div><div class="metric-note">当前账号可见商品</div></article>
+          <article class="metric-card"><div class="metric-label">当前展示商品数 <span class="metric-icon violet">⌗</span></div><div class="metric-value" id="visibleProducts">—</div><div class="metric-note">当前筛选后的商品行数</div></article>
+          <article class="metric-card"><div class="metric-label">未归档商品 <span class="metric-icon green">↗</span></div><div class="metric-value" id="activeProducts">—</div><div class="metric-note">未归档商品</div></article>
+          <article class="metric-card"><div class="metric-label">可用库存 <span class="metric-icon blue">▤</span></div><div class="metric-value" id="totalStock">—</div><div class="metric-note" id="totalStockNote">各仓库存数量合计</div></article>
+          <button class="metric-card metric-card-button" id="lowStockCard" type="button" aria-label="查看低库存商品"><div class="metric-label">低库存提醒 <span class="metric-icon amber">!</span></div><div class="metric-value" id="lowStock">—</div><div class="metric-note">点击查看库存不高于 5 件的 SKU</div></button>
+        </div>
+
+        <section class="panel warehouse-overview-panel" aria-labelledby="warehouseOverviewTitle">
+          <div class="panel-heading"><div><h2 id="warehouseOverviewTitle">仓库库存概览</h2><span class="subtle">查看每个仓库的商品数量与库存总量，点击卡片可筛选商品</span></div></div>
+          <div class="warehouse-summary-grid" id="warehouseStats"><div class="empty-state">等待加载</div></div>
+        </section>
+
+        <div class="panel table-panel product-catalog-panel">
+          <div class="panel-heading"><div><h2>商品目录</h2><span class="subtle" id="productCountLabel">等待加载</span><span class="subtle stock-warehouse-label" id="stockWarehouseLabel">库存仓库：全部仓库</span></div><div class="table-tools"><button class="filter-chip hidden" id="lowStockFilter" type="button" aria-pressed="false">低库存 ×</button><label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="搜索名称或多个 ID（逗号/空格分隔）" aria-label="搜索商品名称、Offer ID 或多个商品 ID"></label><select id="statusFilter" aria-label="筛选商品状态"><option value="all">全部状态</option><option value="active">未归档</option><option value="archived">已归档</option></select><select id="stockWarehouseFilter" class="stock-warehouse-filter" aria-label="切换可用库存仓库"><option value="all">全部仓库</option></select><button class="button button-secondary compact-button" id="openInventoryTransfer" type="button" disabled>库存转移</button><button class="button button-secondary compact-button" id="openPriceBatch" type="button" disabled>批量改售价</button><button class="button button-primary compact-button" id="openInventoryBatch" type="button" disabled>批量改库存</button></div></div>
+          <div class="notice hidden" id="warningBanner"></div>
+          <div class="table-wrap"><table><thead><tr><th class="select-column"><input type="checkbox" id="productSelectAll" aria-label="选择当前商品"></th><th>商品</th><th id="offerIdSortColumn" aria-sort="none"><button class="sort-header" id="sortOfferId" type="button" aria-label="按货号 / Offer ID 排序，当前未排序；点击切换"><span>货号 / Offer ID</span><span class="sort-indicator" id="offerIdSortIndicator" aria-hidden="true">↕</span></button></th><th>状态</th><th>可用库存</th><th>售价</th><th data-product-analytics-header="true" title="Ozon 销售分析，近 7 天">展示总数</th><th>商品 ID</th></tr></thead><tbody id="productsTable"><tr><td colspan="8" class="empty-state">点击“刷新数据”连接 Ozon 并加载商品。</td></tr></tbody></table></div>
+          <div class="table-footer"><span id="lastUpdated">尚未同步</span><span class="product-pagination" id="productPagination"><button type="button" id="productPageFirst" aria-label="首页" title="首页">首页</button><button type="button" id="productPagePrevious" aria-label="上一页" title="上一页">←</button><label class="product-page-jump"><span>第</span><input id="productPageInput" type="number" min="1" value="1" inputmode="numeric" aria-label="输入页码"><span>/ <span id="productPageTotal">1</span> 页</span></label><button type="button" id="productPageNext" aria-label="下一页" title="下一页">→</button><button type="button" id="productPageLast" aria-label="尾页" title="尾页">尾页</button><button type="button" id="productPageJump" class="product-page-jump-button">跳转</button></span><span>每页 100 个商品 · 库存数据由 Ozon Seller API 提供</span></div>
+        </div>
+      </section>
+
+      <section class="view" id="pricing-promotionsView">
+        <div class="page-heading"><div><div class="eyebrow">PRICING & PROMOTIONS</div><h1>价格与促销</h1><p>查看 Ozon 商品售价、划线价和已识别的营销活动状态。</p></div><div class="heading-actions"><button class="button button-secondary" id="refreshPricingPromotions"><span class="refresh-icon">↻</span>同步价格</button></div></div>
+        <div class="metric-grid pricing-promotion-metrics">
+          <article class="metric-card"><div class="metric-label">商品总数 <span class="metric-icon violet">◇</span></div><div class="metric-value" id="pricingProductsTotal">—</div><div class="metric-note">当前账号可见商品</div></article>
+          <article class="metric-card"><div class="metric-label">已参加促销 <span class="metric-icon green">%</span></div><div class="metric-value" id="pricingPromotionActive">—</div><div class="metric-note">Ozon 明确返回活动信息</div></article>
+          <article class="metric-card"><div class="metric-label">未参加促销 <span class="metric-icon blue">—</span></div><div class="metric-value" id="pricingPromotionInactive">—</div><div class="metric-note">接口明确返回无活动</div></article>
+          <article class="metric-card"><div class="metric-label">状态待确认 <span class="metric-icon amber">!</span></div><div class="metric-value" id="pricingPromotionUnknown">—</div><div class="metric-note">Ozon 未返回活动字段</div></article>
+        </div>
+        <div class="panel table-panel pricing-promotion-panel">
+          <div class="panel-heading"><div><h2>商品价格与促销状态</h2><span class="subtle" id="pricingPromotionCountLabel">尚未同步</span></div><div class="table-tools"><label class="search-box"><span>⌕</span><input id="pricingPromotionSearch" type="search" placeholder="搜索商品；多个商品ID/Offer ID可用逗号、空格或换行分隔" aria-label="搜索价格与促销商品，支持多个商品 ID 或 Offer ID"></label><select id="pricingPromotionFilter" aria-label="筛选促销状态"><option value="all">全部状态</option><option value="active">已参加促销</option><option value="inactive">未参加促销</option><option value="unknown">状态待确认</option></select><button class="button button-secondary compact-button" id="pricingPromotionDeactivateSelected" type="button" disabled>移出所选促销</button><button class="button button-secondary compact-button" id="pricingPromotionJoinSelected" type="button" disabled>参加活动</button><button class="button button-secondary compact-button" id="pricingPromotionEditPromotionPriceSelected" type="button" disabled>批量改促销价</button></div></div>
+          <div class="notice hidden" id="pricingPromotionWarning"></div>
+          <div class="table-wrap"><table><thead><tr><th class="select-column"><input type="checkbox" id="pricingPromotionSelectAll" aria-label="选择当前商品"></th><th>商品</th><th id="pricingPromotionOfferIdSortColumn" aria-sort="none"><button class="sort-header" id="pricingPromotionOfferIdSort" type="button" aria-label="按价格与促销的 Offer ID 排序，当前未排序；点击切换"><span>Offer ID</span><span class="sort-indicator" id="pricingPromotionOfferIdSortIndicator" aria-hidden="true">↕</span></button></th><th>当前售价</th><th>划线价</th><th>促销价</th><th>促销活动</th><th>促销状态</th></tr></thead><tbody id="pricingPromotionTable"><tr><td colspan="8" class="empty-state">点击“同步价格”读取 Ozon 价格与促销信息。</td></tr></tbody></table></div>
+          <div class="table-footer"><span id="pricingPromotionLastUpdated">尚未同步</span><span class="product-pagination" id="pricingPromotionPagination"><button type="button" id="pricingPromotionPageFirst" aria-label="首页" title="首页">首页</button><button type="button" id="pricingPromotionPagePrevious" aria-label="上一页" title="上一页">←</button><label class="product-page-jump"><span>第</span><input id="pricingPromotionPageInput" type="number" min="1" value="1" inputmode="numeric" aria-label="输入价格与促销页码"><span>/ <span id="pricingPromotionPageTotal">1</span> 页</span></label><button type="button" id="pricingPromotionPageNext" aria-label="下一页" title="下一页">→</button><button type="button" id="pricingPromotionPageLast" aria-label="尾页" title="尾页">尾页</button><button type="button" id="pricingPromotionPageJump" class="product-page-jump-button">跳转</button></span><span class="pricing-promotion-source">价格来自 Ozon /v5/product/info/prices · 促销状态仅按 Ozon 返回的营销活动字段判断</span></div>
+        </div>
+      </section>
+
+      <section class="view" id="product-profitView">
+        <div class="page-heading"><div><div class="eyebrow">OGL PRODUCT PROFIT</div><h1>商品利润</h1><p>按促销价优先，扣除 OGL 物流费、Ozon 平台服务费、国际运输合同服务费、星星计划广告、收单业务费和 rFBS/FBS 佣金。</p></div><div class="heading-actions"><button class="button button-secondary" id="refreshProductProfit"><span class="refresh-icon">↻</span>同步核算</button></div></div>
+        <div class="metric-grid product-profit-metrics">
+          <article class="metric-card"><div class="metric-label">商品总数 <span class="metric-icon violet">▦</span></div><div class="metric-value" id="productProfitTotal">—</div><div class="metric-note">当前店铺商品目录</div></article>
+          <article class="metric-card"><div class="metric-label">已完成核算 <span class="metric-icon green">✓</span></div><div class="metric-value" id="productProfitCalculated">—</div><div class="metric-note">价格、尺寸、重量和佣金齐全</div></article>
+          <article class="metric-card"><div class="metric-label">未完成核算 <span class="metric-icon amber">!</span></div><div class="metric-value" id="productProfitIncomplete">—</div><div class="metric-note">资料不完整或不符合线路范围</div></article>
+        </div>
+        <div class="panel table-panel product-profit-panel">
+          <div class="panel-heading"><div><h2>逐商品利润明细</h2><span class="subtle" id="productProfitCountLabel">尚未同步</span></div><div class="table-tools"><label class="search-box"><span>⌕</span><input id="productProfitSearch" type="search" placeholder="搜索名称、商品 ID 或 Offer ID" aria-label="搜索商品利润明细"></label><select id="productProfitFilter" aria-label="筛选核算状态"><option value="all">全部状态</option><option value="calculated">已完成核算</option><option value="incomplete">待补资料</option><option value="unavailable">无适用线路</option></select></div></div>
+          <div class="notice hidden" id="productProfitWarning"></div>
+          <div class="table-wrap"><table><thead><tr><th id="productProfitOfferIdSortColumn" aria-sort="none"><button class="sort-header" id="productProfitOfferIdSort" type="button" aria-label="按 Offer ID 排序，当前未排序；点击切换"><span>商品</span><span class="sort-indicator" id="productProfitOfferIdSortIndicator" aria-hidden="true">↕</span></button></th><th>使用售价</th><th>OGL 线路 / 计费重</th><th>OGL 物流费</th><th>电子服务（2%）</th><th>国际运输合同（0.35%）</th><th>星星计划广告（1.5%）</th><th>收单费（2%）</th><th>平台佣金</th><th>预计利润</th><th>利润率</th><th>核算状态</th></tr></thead><tbody id="productProfitTable"><tr><td colspan="12" class="empty-state">点击“同步核算”读取店铺商品并计算利润。</td></tr></tbody></table></div>
+          <div class="table-footer"><span id="productProfitLastUpdated">尚未同步</span><span class="product-pagination" id="productProfitPagination"><button type="button" id="productProfitPageFirst" aria-label="首页" title="首页">首页</button><button type="button" id="productProfitPagePrevious" aria-label="上一页" title="上一页">←</button><label class="product-page-jump"><span>第</span><input id="productProfitPageInput" type="number" min="1" value="1" inputmode="numeric" aria-label="输入商品利润页码"><span>/ <span id="productProfitPageTotal">1</span> 页</span></label><button type="button" id="productProfitPageNext" aria-label="下一页" title="下一页">→</button><button type="button" id="productProfitPageLast" aria-label="尾页" title="尾页">尾页</button><button type="button" id="productProfitPageJump" class="product-page-jump-button">跳转</button></span><span>每页 100 个商品 · 汇率 1 RUB = <strong id="productProfitExchangeRate">—</strong> CNY</span></div>
+        </div>
+      </section>
+
+      <section class="view" id="ordersView">
+        <div class="page-heading"><div><div class="eyebrow">ORDER OPERATIONS</div><h1>订单</h1><p>按状态管理订单；仅 Ozon 允许操作的 FBS/rFBS 等待备货订单可备货或拆分。</p></div><div class="heading-actions"><button class="button button-secondary" id="refreshOrders"><span class="refresh-icon">↻</span>同步订单</button></div></div>
+        <div class="metric-grid order-metrics">
+          <article class="metric-card"><div class="metric-label">订单总数 <span class="metric-icon violet">▤</span></div><div class="metric-value" id="ordersTotal">—</div><div class="metric-note" id="ordersPeriodNote">最近 90 天 · FBO + FBS/rFBS</div></article>
+          <article class="metric-card"><div class="metric-label">备货中 <span class="metric-icon amber">◷</span></div><div class="metric-value" id="ordersPreparing">—</div><div class="metric-note">等待处理或打包</div></article>
+          <article class="metric-card"><div class="metric-label">运输中 <span class="metric-icon blue">→</span></div><div class="metric-value" id="ordersInTransit">—</div><div class="metric-note">已发运或配送中</div></article>
+          <article class="metric-card"><div class="metric-label">已签收 <span class="metric-icon green">✓</span></div><div class="metric-value" id="ordersDelivered">—</div><div class="metric-note">已完成交付</div></article>
+          <article class="metric-card balance-metric-card"><div class="metric-label">当前金额 <span class="metric-icon green">₽</span></div><div class="metric-value balance-rub-value" id="ordersBalanceRub">— RUB</div><div class="balance-cny-value" id="ordersBalanceCny">≈ — CNY</div><div class="balance-threshold-alert hidden" id="ordersBalanceAlert" role="status" aria-live="polite"></div><div class="metric-note" id="ordersBalanceNote">来自 Ozon 财务余额接口</div><div class="balance-threshold-hint">提醒阈值：CNY 6,500</div></article>
+        </div>
+        <div class="panel table-panel orders-panel">
+          <div class="panel-heading"><div><h2>订单列表</h2><span class="subtle" id="ordersCountLabel">尚未同步</span></div><div class="table-tools"><label class="search-box"><span>⌕</span><input id="ordersSearchInput" type="search" placeholder="搜索订单号、货号或商品"></label></div></div>
+          <div class="order-channel-tabs" role="tablist" aria-label="订单履约方式">
+            <button type="button" data-order-channel="all" class="active" aria-selected="true">全部渠道 · —</button>
+            <button type="button" data-order-channel="FBO" aria-selected="false">FBO · —</button>
+            <button type="button" data-order-channel="FBS/rFBS" aria-selected="false">FBS/rFBS · —</button>
+          </div>
+          <div class="order-category-tabs" role="tablist" aria-label="订单状态分类">
+            <button type="button" data-order-category="all" class="active" aria-selected="true">全部 · —</button>
+            <button type="button" data-order-category="preparing" aria-selected="false">备货 · —</button>
+            <button type="button" data-order-category="ready_to_ship" aria-selected="false">待发运 · —</button>
+            <button type="button" data-order-category="in_transit" aria-selected="false">运输中 · —</button>
+            <button type="button" data-order-category="delivered" aria-selected="false">已签收 · —</button>
+            <button type="button" data-order-category="cancelled" aria-selected="false">已取消 · —</button>
+            <button type="button" data-order-category="other" aria-selected="false">其他 · —</button>
+          </div>
+          <div class="notice hidden" id="ordersWarning"></div>
+          <div class="notice hidden order-action-notice" id="ordersActionNotice" role="status"></div>
+          <div class="table-wrap"><table><thead><tr><th>商品</th><th>订单号</th><th>状态</th><th>履约方式</th><th>仓库 / 配送</th><th>数量</th><th>金额（CNY）</th><th>下单时间</th><th>操作</th></tr></thead><tbody id="ordersTable"><tr><td colspan="9" class="empty-state">点击“同步订单”读取 Ozon 订单。</td></tr></tbody></table></div>
+          <div class="table-footer"><span id="ordersLastUpdated">尚未同步 · 列表范围为最近 90 天</span><span>数据来自 Ozon Seller API</span></div>
+        </div>
+      </section>
+
+      <section class="view" id="pickupView">
+        <div class="page-heading"><div><div class="eyebrow">BUYER PICKUP</div><h1>到货提醒</h1><p>管理已到自提点的订单，并向买家发送或再次发送取货提醒。</p></div><div class="heading-actions"><button class="button button-secondary" id="refreshPickup"><span class="refresh-icon">↻</span>同步订单</button><button class="button button-secondary" id="remindPickupAgainSelected" disabled>再次提醒所选 <span>↻</span></button><button class="button button-primary" id="sendPickupSelected" disabled>发送所选提醒 <span>→</span></button></div></div>
+        <div class="metric-grid pickup-metrics">
+          <article class="metric-card"><div class="metric-label">到货订单 <span class="metric-icon violet">⌂</span></div><div class="metric-value" id="pickupArrived">—</div><div class="metric-note" id="pickupArrivedNote">已到 Ozon 自提点</div></article>
+          <article class="metric-card"><div class="metric-label">可发送提醒 <span class="metric-icon green">✓</span></div><div class="metric-value" id="pickupEligible">—</div><div class="metric-note" id="pickupEligibleNote">买家会话可回复且尚未发送</div></article>
+          <article class="metric-card"><div class="metric-label">已发送 <span class="metric-icon blue">↗</span></div><div class="metric-value" id="pickupSent">—</div><div class="metric-note" id="pickupSentNote">发送请求已发出，不代表买家已读</div></article>
+          <article class="metric-card"><div class="metric-label">待核实订单 <span class="metric-icon amber">!</span></div><div class="metric-value" id="pickupBlocked">—</div><div class="metric-note" id="pickupBlockedNote">避免网络异常后重复联系</div></article>
+        </div>
+        <div class="panel pickup-settings">
+          <div class="pickup-settings-bar"><div class="pickup-settings-copy"><div><h2>自动提醒</h2><p>每天检查一次新到货订单</p></div><label class="toggle"><input type="checkbox" id="pickupAutoEnabled"><span class="toggle-track"></span><span class="toggle-text" id="pickupAutoLabel">已关闭</span></label></div><button class="button button-secondary" id="savePickupSettings">保存设置</button></div>
+          <details class="pickup-template-details"><summary>提醒消息模板</summary><div class="pickup-template-content"><div class="pickup-template-editor"><label class="field pickup-template-preset"><span>选择预设消息</span><select id="pickupTemplatePreset" aria-label="选择提醒消息预设"><option value="custom">自定义 / 当前内容</option><option value="ru-standard">俄语 · 标准提醒</option><option value="ru-friendly">俄语 · 友好提醒</option><option value="ru-short">俄语 · 简短提醒</option><option value="zh-standard">中文 · 标准提醒</option></select></label><label class="field pickup-template"><span>发送给买家的消息</span><textarea id="pickupTemplate" rows="3" maxlength="1000" placeholder="Здравствуйте! Ваш заказ {order_number} уже прибыл в пункт выдачи Ozon."></textarea><small>选择预设后可继续编辑。使用 <code>{order_number}</code> 自动插入订单号。</small></label></div><span class="subtle" id="pickupTemplateCount">0 / 1000</span></div></details>
+        </div>
+        <div class="panel table-panel pickup-table-panel">
+          <div class="panel-heading"><div><h2>到货订单</h2><span class="subtle" id="pickupCountLabel">尚未同步</span></div><div class="table-tools"><label class="search-box pickup-search"><span aria-hidden="true">⌕</span><input id="pickupSearch" type="search" placeholder="搜索订单号或商品" aria-label="搜索到货提醒订单"></label><select id="pickupFilter" aria-label="筛选到货提醒订单"><option value="all">全部状态</option><option value="ready">可发送</option><option value="blocked">暂不可发送</option><option value="sent">已发送</option></select></div></div>
+          <div class="pickup-channel-tabs" role="group" aria-label="按履约方式筛选到货订单">
+            <button type="button" data-pickup-channel="all" class="active" aria-pressed="true">全部渠道 · —</button>
+            <button type="button" data-pickup-channel="FBO" aria-pressed="false">FBO · —</button>
+            <button type="button" data-pickup-channel="FBS/rFBS" aria-pressed="false">FBS/rFBS · —</button>
+          </div>
+          <div class="notice hidden" id="pickupWarning"></div>
+          <div class="table-wrap"><table><thead><tr><th><input type="checkbox" id="pickupSelectAll" aria-label="选择当前可操作订单"></th><th>商品</th><th>订单号</th><th>履约方式</th><th>订单状态</th><th>买家聊天</th><th>提醒次数</th><th>操作</th></tr></thead><tbody id="pickupTable"><tr><td colspan="8" class="empty-state">点击“同步到货订单”读取 Ozon 自提点订单。</td></tr></tbody></table></div>
+          <div class="table-footer"><span id="pickupLastUpdated">尚未同步 · 列表范围为最近 90 天</span><span>切换渠道只筛选列表，不会联系买家</span></div>
+        </div>
+      </section>
+
+      <section class="view" id="domestic-expressView">
+        <div class="page-heading"><div><div class="eyebrow">DOMESTIC EXPRESS</div><h1>国内快递</h1><p>输入国内快递单号查询最新物流轨迹，查询请求由本机服务端发送。</p></div><div class="heading-actions"><button class="button button-secondary" id="openDomesticExpressSettings" type="button"><span>⚙</span>快递 API 设置</button></div></div>
+        <div class="notice express-policy">当前使用快递 100 查询接口。请先配置 Customer 和 Key；密钥只保存在本机服务端，不会显示在浏览器中。</div>
+        <div class="domestic-express-layout">
+          <form class="panel domestic-express-query-panel" id="domesticExpressQueryForm">
+            <div class="panel-heading"><div><h2>查询物流</h2><span class="subtle" id="domesticExpressConfigStatus">正在读取接口配置…</span></div></div>
+            <div class="domestic-express-form">
+              <label class="field"><span>快递公司</span><select id="domesticExpressCarrier" name="carrier"><option value="auto">自动识别</option><option value="sf">顺丰速运</option><option value="zto">中通快递</option><option value="yto">圆通速递</option><option value="sto">申通快递</option><option value="yunda">韵达快递</option><option value="jd">京东物流</option><option value="ems">中国邮政 EMS</option><option value="youzhengguonei">邮政快递包裹</option><option value="jtexpress">极兔速递</option><option value="dbkd">德邦快递</option><option value="best">百世快递</option></select></label>
+              <label class="field domestic-express-number-field"><span>快递单号</span><input id="domesticExpressNumber" name="number" type="text" inputmode="text" autocomplete="off" maxlength="64" required placeholder="输入快递单号，例如 SF1234567890"></label>
+              <label class="field"><span>收件人手机号后四位（可选）</span><input id="domesticExpressPhone" name="phone" inputmode="numeric" maxlength="4" placeholder="顺丰等快递可能需要"></label>
+              <button class="button button-primary domestic-express-submit" id="queryDomesticExpress" type="submit"><span>⌕</span>查询物流</button>
+            </div>
+            <div class="domestic-express-query-status" id="domesticExpressQueryStatus" role="status">请输入单号开始查询。</div>
+          </form>
+          <aside class="panel domestic-express-help"><div class="panel-heading"><div><h2>查询说明</h2><span class="subtle">支持国内常见快递公司</span></div></div><div class="express-help-list"><div><strong>自动识别</strong><span>不确定快递公司时使用，接口会尝试识别。</span></div><div><strong>手机号后四位</strong><span>部分快递需要填写，用于提高查询准确率。</span></div><div><strong>数据来源</strong><span>轨迹由快递 100 返回，页面不保存 API Key。</span></div></div></aside>
+        </div>
+        <section class="panel domestic-express-result-panel" id="domesticExpressResultPanel" hidden aria-live="polite">
+          <div class="panel-heading"><div><h2>物流轨迹</h2><span class="subtle" id="domesticExpressResultMeta"></span></div><span class="express-status-pill" id="domesticExpressResultStatus">—</span></div>
+          <div class="domestic-express-result-head"><strong id="domesticExpressResultNumber">—</strong><span id="domesticExpressResultCarrier">—</span><span id="domesticExpressResultUpdated">—</span></div>
+          <div class="express-timeline" id="domesticExpressTimeline"></div>
+        </section>
+      </section>
+
+      <section class="view" id="sourcingView" hidden>
+        <div class="page-heading"><div><div class="eyebrow">SUPPLIER DISCOVERY</div><h1>找货源</h1><p>通过拼多多和 1688 商品接口搜索供应商品，先比较货源信息，再决定后续采购。</p></div><div class="heading-actions"><button class="button button-secondary" id="openSourcingSettings" type="button"><span>⚙</span>货源 API 设置</button></div></div>
+        <div class="notice sourcing-policy">本模块只读取商品搜索结果，不执行下单、付款、采集订单或自动上架。平台 API 凭据保存在本机服务端，不会出现在浏览器请求中。</div>
+        <div class="panel sourcing-search-panel">
+          <form class="sourcing-search-form" id="sourcingSearchForm">
+            <label class="field sourcing-keyword"><span>商品关键词</span><input id="sourcingKeyword" name="keyword" maxlength="100" required placeholder="例如：折叠椅、收纳箱、宠物窝"></label>
+            <label class="field"><span>货源平台</span><select id="sourcingPlatform" name="platform"><option value="all">拼多多 + 1688</option><option value="pdd">拼多多</option><option value="1688">1688</option></select></label>
+            <label class="field"><span>每个平台</span><select id="sourcingPageSize" name="pageSize"><option value="20">20 条</option><option value="40">40 条</option><option value="60">60 条</option></select></label>
+            <button class="button button-primary sourcing-submit" type="submit" id="searchSourcing"><span>⌕</span>搜索货源</button>
+          </form>
+          <div class="sourcing-status" id="sourcingStatus" role="status">配置平台 API 后即可开始搜索。</div>
+        </div>
+        <div class="sourcing-summary" id="sourcingSummary"></div>
+        <div class="sourcing-results" id="sourcingResults"><div class="panel empty-state sourcing-empty">输入关键词后，搜索结果会按平台显示在这里。</div></div>
+      </section>
+
+      <section class="view" id="addView">
+        <div class="page-heading"><div><div class="eyebrow">PRODUCT CATALOG</div><h1>添加商品</h1><p>填写商品信息、价格和规格后提交到 Ozon。</p></div></div>
+        <div class="form-layout">
+          <form class="panel product-form" id="productForm">
+            <nav class="product-section-nav" aria-label="商品信息分区"><a href="#productBasics">基本信息</a><a href="#productPricing">价格与图片</a><a href="#productAttributes">规格与属性</a></nav>
+            <div class="form-section" id="productBasics"><div class="section-title"><span class="section-number">01</span><div><h2>基本信息</h2><p>商品名称、货号和类目。</p></div></div>
+              <div class="field-grid"><label class="field span-2"><span>商品名称 <i>*</i></span><input name="name" maxlength="500" required placeholder="例如：女士轻便防水徒步背包"></label><label class="field"><span>Offer ID（店铺货号）<i>*</i></span><input name="offerId" maxlength="100" required placeholder="例如：BAG-001"></label><label class="field"><span>商品条码</span><input name="barcode" placeholder="商品条码"></label><label class="field"><span>类目 ID <i>*</i></span><input name="descriptionCategoryId" type="number" min="1" required placeholder="Ozon 类目 ID"></label><label class="field"><span>商品类型 ID <i>*</i></span><input name="typeId" type="number" min="1" required placeholder="类目下的类型 ID"></label><label class="field span-2"><span>商品描述 <i>*</i></span><textarea name="description" rows="5" required placeholder="商品特点、材质、使用场景"></textarea></label></div>
+            </div>
+            <div class="form-section" id="productPricing"><div class="section-title"><span class="section-number">02</span><div><h2>价格与图片</h2><p>价格按 Ozon 要求填写 RUB。</p></div></div>
+              <div class="field-grid"><label class="field"><span>售价（RUB）<i>*</i></span><input name="price" inputmode="decimal" required placeholder="1990.00"></label><label class="field"><span>划线价（RUB）</span><input name="oldPrice" inputmode="decimal" placeholder="2490.00"></label><label class="field"><span>增值税 VAT <i>*</i></span><select name="vat" required><option value="0">0%</option><option value="0.05">5%</option><option value="0.07">7%</option><option value="0.1">10%</option><option value="0.2" selected>20%</option></select></label><label class="field span-2"><span>商品图片 URL</span><textarea name="images" rows="3" placeholder="每行填写一个图片链接"></textarea><small>每行填写一个可访问的图片链接，第一张作为主图。</small></label></div>
+            </div>
+            <div class="form-section" id="productAttributes"><div class="section-title"><span class="section-number">03</span><div><h2>规格与属性</h2><p>填写包装尺寸及对应类目的商品属性。</p></div></div>
+              <div class="field-grid dimensions"><label class="field"><span>重量（g）</span><input name="weight" type="number" min="1" value="500"></label><label class="field"><span>长（mm）</span><input name="depth" type="number" min="1" value="200"></label><label class="field"><span>宽（mm）</span><input name="width" type="number" min="1" value="150"></label><label class="field"><span>高（mm）</span><input name="height" type="number" min="1" value="100"></label></div>
+              <label class="field attributes-field"><span>类目属性 JSON</span><textarea name="attributes" rows="6" spellcheck="false" placeholder='[{"id": 8229, "values": [{"dictionary_value_id": 0, "value": "黑色"}]}]'></textarea><small>类目有必填属性时，请填写对应的属性 ID 和取值；留空时提交基础商品信息。</small></label>
+              <div class="rich-content-new-product"><div class="rich-content-field-heading"><span class="field-label">富内容 JSON（可选）</span><button class="text-button" type="button" id="insertNewRichContentTemplate">插入空模板</button></div><textarea name="richContent" id="newProductRichContent" rows="10" spellcheck="false" placeholder='{"version": 1, "blocks": []}'></textarea><small>可粘贴 Ozon 富内容构造器导出的 JSON。提交新商品时会作为属性 ID 11254 一起导入；未填写则保持原有新增商品流程。</small><div class="rich-content-inline-message" id="newProductRichContentMessage" role="status"></div></div>
+            </div>
+            <div class="form-actions"><button class="button button-secondary" type="button" id="cancelAdd">取消</button><button class="button button-primary" type="submit" id="submitProduct">提交到 Ozon <span>→</span></button></div>
+          </form>
+        </div>
+        <div class="task-panel panel hidden" id="taskPanel"></div>
+      </section>
+
+      <section class="view" id="rich-contentView">
+        <div class="page-heading"><div><div class="eyebrow">RICH CONTENT</div><h1>富内容</h1><p>为现有商品读取、编辑并提交 Ozon 富内容，也可从这里进入新增商品流程。</p></div><div class="heading-actions"><button class="button button-secondary" id="goToAddWithRichContent" type="button"><span>＋</span>新增商品</button></div></div>
+        <div class="notice rich-content-policy">富内容会作为商品属性 ID 11254 提交。请优先使用 Ozon 富内容构造器导出的 JSON；页面只负责校验 JSON、提供安全预览和提交，不会替你生成未经账号类目验证的结构。</div>
+        <div class="rich-content-layout">
+          <form class="panel rich-content-editor-panel" id="richContentForm">
+            <div class="panel-heading"><div><h2>编辑商品富内容</h2><span class="subtle">读取动作只在你点击“读取现有内容”时调用 Ozon</span></div></div>
+            <div class="rich-content-product-picker"><label class="field rich-content-product-search"><span>搜索商品 ID / Offer ID</span><input id="richContentProductSearch" type="search" autocomplete="off" placeholder="输入商品 ID、Offer ID 或商品名称" aria-describedby="richContentProductSearchStatus"></label><label class="field"><span>选择现有商品</span><select id="richContentProductSelect" aria-label="选择要编辑富内容的商品"><option value="">请先刷新商品列表</option></select></label><button class="button button-secondary" type="button" id="loadRichContent" disabled>读取现有内容</button><div class="rich-content-search-status subtle" id="richContentProductSearchStatus" role="status">请先刷新商品列表</div></div>
+            <div class="rich-content-product-summary" id="richContentProductSummary"><div class="rich-content-empty">选择商品后显示商品图片、名称和 Offer ID。</div></div>
+            <label class="field rich-content-json-field"><span>富内容 JSON</span><textarea id="richContentInput" rows="22" spellcheck="false" placeholder='{"version": 1, "blocks": []}'></textarea><small>必须是 JSON 对象或数组，单个商品建议控制在 500 KB 以内。清空后不会自动删除 Ozon 中的旧内容；如需清除，请按 Ozon 当前接口规则提交空结构。</small></label>
+            <div class="rich-content-tools"><button class="button button-secondary" type="button" id="insertRichContentTemplate">插入空模板</button><button class="button button-secondary" type="button" id="formatRichContent">格式化 JSON</button><button class="button button-secondary" type="button" id="clearRichContent">清空编辑器</button></div>
+            <div class="modal-message" id="richContentMessage" role="status"></div>
+            <div class="form-actions rich-content-actions"><button class="button button-primary" type="submit" id="submitRichContent" disabled>提交到 Ozon <span>→</span></button></div>
+            <div class="security-note">提交后 Ozon 会返回异步任务 ID。只有你点击提交并确认后才会写入商品，不会随商品页自动刷新发送更新请求。</div>
+          </form>
+          <aside class="panel rich-content-preview-panel"><div class="panel-heading"><div><h2>内容预览</h2><span class="subtle">仅按常见 text / image 字段安全展示</span></div></div><div class="rich-content-preview" id="richContentPreview"><div class="rich-content-empty">输入或读取 JSON 后，这里会显示预览。</div></div><div class="rich-content-preview-note">如果你的 JSON 使用了 Ozon 特定组件，预览可能只显示组件类型和可识别文本；最终效果请以 Ozon 商品页为准。</div></aside>
+        </div>
+        <div class="task-panel panel hidden" id="richContentTaskPanel"></div>
+      </section>
+
+      <footer class="app-footer">Ozon Seller Studio <span>•</span> 本地运行，不会上传到其他服务器</footer>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <form class="modal" id="settingsForm"><button class="modal-close" type="button" id="closeSettings" aria-label="关闭">×</button><div class="eyebrow">ACCOUNT CONNECTION</div><h2 id="settingsTitle">连接 Ozon API</h2><p class="modal-intro">使用当前店铺的 Ozon Seller API ID 和 API Key。凭据将安全保存在本机，不会回显到页面。</p>
+      <label class="field"><span>API ID</span><input name="clientId" inputmode="numeric" required placeholder="例如：1234567"></label><label class="field"><span>API Key</span><input name="apiKey" type="password" required autocomplete="new-password" placeholder="粘贴 API Key"></label><div class="modal-message" id="settingsMessage"></div><div class="modal-actions"><button class="button button-secondary" type="button" id="testConnection">测试连接</button><button class="button button-primary" type="submit">保存设置</button></div><div class="security-note">请勿把 API Key 发给他人或提交到代码仓库。若曾公开分享，建议在 Ozon 后台重新生成。</div>
+    </form>
+  </div>
+  <div class="modal-backdrop hidden" id="shopModal" role="dialog" aria-modal="true" aria-labelledby="shopTitle">
+    <form class="modal shop-modal" id="shopForm"><button class="modal-close" type="button" id="closeShop" aria-label="关闭">×</button><div class="eyebrow">OZON SHOP ACCOUNT</div><h2 id="shopTitle">添加店铺</h2><p class="modal-intro">填写该店铺的 Ozon Seller API 凭据。保存后立即切换至此店铺，凭据只保存在本机。</p>
+      <label class="field"><span>店铺名称</span><input name="name" required maxlength="80" placeholder="例如：俄罗斯主店"></label><label class="field"><span>API ID</span><input name="clientId" inputmode="numeric" required placeholder="Ozon Seller API ID"></label><label class="field"><span>API Key</span><input name="apiKey" type="password" required autocomplete="new-password" placeholder="粘贴此店铺的 API Key"></label><div class="modal-message" id="shopMessage"></div><div class="modal-actions"><button class="button button-secondary" type="button" id="cancelShop">取消</button><button class="button button-primary" type="submit" id="saveShop">保存并切换</button></div><div class="security-note">不同店铺的商品、库存、价格促销、订单、到货提醒及缓存分别保存。API Key 不会显示在店铺列表中。</div>
+    </form>
+  </div>
+  <div class="modal-backdrop hidden" id="domesticExpressSettingsModal" role="dialog" aria-modal="true" aria-labelledby="domesticExpressSettingsTitle">
+    <form class="modal domestic-express-settings-modal" id="domesticExpressSettingsForm"><button class="modal-close" type="button" id="closeDomesticExpressSettings" aria-label="关闭">×</button><div class="eyebrow">DOMESTIC EXPRESS API</div><h2 id="domesticExpressSettingsTitle">快递查询 API 设置</h2><p class="modal-intro">配置快递 100 的 Customer 和 Key。保存后只显示脱敏状态；留空表示保留已配置的值。</p>
+      <label class="field"><span>Customer</span><input name="customer" autocomplete="off" placeholder="快递 100 Customer"></label><label class="field"><span>Key</span><input name="key" type="password" autocomplete="new-password" placeholder="快递 100 Key"></label><div class="modal-message" id="domesticExpressSettingsMessage"></div><div class="modal-actions"><button class="button button-secondary" type="button" id="cancelDomesticExpressSettings">取消</button><button class="button button-primary" type="submit" id="saveDomesticExpressSettings">保存设置</button></div><div class="security-note">快递查询只在你点击“查询物流”后请求第三方接口。请从快递 100 控制台获取 Customer 和 Key，不要把 Key 填到前端代码中。</div>
+    </form>
+  </div>
+  <div class="modal-backdrop hidden" id="inventoryModal" role="dialog" aria-modal="true" aria-labelledby="inventoryTitle">
+    <form class="modal inventory-modal" id="inventoryForm"><button class="modal-close" type="button" id="closeInventory" aria-label="关闭">×</button><div class="eyebrow">INVENTORY UPDATE</div><h2 id="inventoryTitle">批量更改库存</h2><p class="modal-intro">将把所选商品在指定仓库的库存设置为新数量。此操作会直接写入 Ozon，提交前请确认。</p>
+      <div class="inventory-toolbar"><span class="subtle" id="inventorySelectionLabel">已选择 0 个商品</span><div class="inventory-quick-actions"><label class="inventory-quick-field"><span>统一仓库</span><select id="inventoryCommonWarehouse" aria-label="统一选择库存仓库"><option value="">选择仓库</option></select><button class="button button-secondary" id="applyCommonWarehouse" type="button">应用</button></label><label class="inventory-quick-field"><span>统一设置</span><input id="inventoryCommonStock" type="number" min="0" max="1000000000" step="1" placeholder="数量"><button class="button button-secondary" id="applyCommonStock" type="button">应用</button></label></div></div>
+      <div class="inventory-list" id="inventoryList"></div>
+      <div class="modal-message" id="inventoryMessage"></div><div class="modal-actions"><button class="button button-secondary" type="button" id="cancelInventory">取消</button><button class="button button-primary" type="submit" id="submitInventory">确认更新库存</button></div><div class="security-note">单次最多更新 100 个商品。每个商品只会提交到你在本窗口选择的仓库；刷新数据可核对 Ozon 返回的库存。</div>
+    </form>
+  </div>
+  <div class="modal-backdrop hidden" id="orderSplitModal" role="dialog" aria-modal="true" aria-labelledby="orderSplitTitle">
+    <form class="modal inventory-modal order-split-modal" id="orderSplitForm"><button class="modal-close" type="button" id="closeOrderSplit" aria-label="关闭">×</button><div class="eyebrow">SPLIT FBS ORDER</div><h2 id="orderSplitTitle">拆分订单</h2><p class="modal-intro" id="orderSplitIntro">为包裹 1 分配数量；未分配的商品会自动放入包裹 2。提交前会重新读取 Ozon 订单并核对所有 SKU 和数量。</p>
+      <div class="order-split-summary"><strong id="orderSplitNumber">订单 —</strong><span>包裹 1：<b id="orderSplitPackageOneCount">0</b> 件</span><span>包裹 2：<b id="orderSplitPackageTwoCount">0</b> 件</span></div>
+      <div class="inventory-list order-split-list" id="orderSplitList"><div class="empty-state">正在读取订单商品…</div></div>
+      <div class="modal-message" id="orderSplitMessage" role="status"></div><div class="modal-actions"><button class="button button-secondary" type="button" id="cancelOrderSplit">取消</button><button class="button button-primary" type="submit" id="submitOrderSplit" disabled>确认拆分订单</button></div><div class="security-note">两个包裹的商品数量合计必须与原订单完全一致，且每个包裹至少包含 1 件商品。拆分会直接提交到 Ozon，提交后请同步订单核对新的运单。</div>
+    </form>
+  </div>
+  <div class="modal-backdrop hidden" id="priceModal" role="dialog" aria-modal="true" aria-labelledby="priceTitle">
+    <form class="modal inventory-modal price-modal" id="priceForm"><button class="modal-close" type="button" id="closePrice" aria-label="关闭">×</button><div class="eyebrow">PRICE UPDATE</div><h2 id="priceTitle">批量修改售价</h2><p class="modal-intro" id="priceIntro">修改所选商品在 Ozon 的售价。可以统一填写后再逐个调整；提交后会直接写入 Ozon，请确认币种和价格无误。</p>
+      <div class="inventory-toolbar"><span class="subtle" id="priceSelectionLabel">已选择 0 个商品</span><div class="inventory-quick-actions"><label class="inventory-quick-field"><span>统一售价</span><input id="priceCommonPrice" type="number" min="0.01" step="0.01" placeholder="新售价"><button class="button button-secondary" id="applyCommonPrice" type="button">应用</button></label><label class="inventory-quick-field" id="priceOldQuickAction"><span>统一划线价</span><input id="priceCommonOldPrice" type="number" min="0" step="0.01" placeholder="留空不改 / 0清除"><button class="button button-secondary" id="applyCommonOldPrice" type="button">应用</button></label></div></div>
+      <div class="notice price-update-note" id="priceUpdateNote">售价必须大于 0；划线价留空表示保持原值，填 0 表示清除划线价，填入正数时必须高于售价。每个商品按当前 Ozon 返回的币种提交。</div>
+      <div class="inventory-list price-list" id="priceList"></div>
+      <div class="modal-message" id="priceMessage"></div><div class="modal-actions"><button class="button button-secondary" type="button" id="cancelPrice">取消</button><button class="button button-primary" type="submit" id="submitPrice">确认修改售价</button></div><div class="security-note">单次最多修改 100 个商品。部分失败时会保留当前选择和输入内容，方便修正后重试；成功后会自动重新同步商品价格。</div>
+    </form>
+  </div>
+  <div class="modal-backdrop hidden" id="promotionPriceModal" role="dialog" aria-modal="true" aria-labelledby="promotionPriceTitle">
+    <form class="modal inventory-modal promotion-price-modal" id="promotionPriceForm"><button class="modal-close" type="button" id="closePromotionPrice" aria-label="关闭">×</button><div class="eyebrow">PROMOTION PRICE UPDATE</div><h2 id="promotionPriceTitle">批量修改促销价</h2><p class="modal-intro" id="promotionPriceIntro">只更新所选商品在当前促销活动中的促销价，不修改商品当前售价或划线价。</p>
+      <div class="inventory-toolbar"><span class="subtle" id="promotionPriceSelectionLabel">已选择 0 个商品</span><label class="inventory-quick-field"><span>统一促销价</span><input id="promotionPriceCommon" type="number" min="0.01" step="0.01" placeholder="新促销价"><button class="button button-secondary" id="applyCommonPromotionPrice" type="button">应用</button></label></div>
+      <div class="notice price-update-note">所选商品必须属于同一个正在参加的活动。促销价必须大于 0，并按活动币种提交；不符合活动规则的价格可能被拒绝，或导致商品被移出活动。</div>
+      <div class="inventory-list price-list" id="promotionPriceList"></div>
+      <div class="modal-message" id="promotionPriceMessage"></div><div class="modal-actions"><button class="button button-secondary" type="button" id="cancelPromotionPrice">取消</button><button class="button button-primary" type="submit" id="submitPromotionPrice">确认修改促销价</button></div><div class="security-note">单次最多修改 100 个商品。只提交活动价格；成功后会重新同步促销数据供核对。</div>
+    </form>
+  </div>
+  <div class="modal-backdrop hidden" id="promotionJoinModal" role="dialog" aria-modal="true" aria-labelledby="promotionJoinTitle">
+    <form class="modal inventory-modal promotion-price-modal" id="promotionJoinForm"><button class="modal-close" type="button" id="closePromotionJoin" aria-label="关闭">×</button><div class="eyebrow">JOIN PROMOTION</div><h2 id="promotionJoinTitle">参加 Ozon 活动</h2><p class="modal-intro">选择一个可参加的活动，然后检查所选商品的资格和活动价。提交后会直接将符合条件的商品加入活动。</p>
+      <label class="field"><span>可参加的活动</span><select id="promotionJoinAction" required><option value="">正在加载活动…</option></select></label>
+      <div class="inventory-toolbar promotion-join-toolbar"><span class="subtle" id="promotionJoinSelectionLabel">已选择 0 个商品</span><label class="inventory-quick-field"><span id="promotionJoinCommonPriceLabel">统一活动价</span><input id="promotionJoinCommonPrice" type="number" min="0.01" step="0.01" placeholder="活动价"><button class="button button-secondary" id="applyCommonPromotionJoinPrice" type="button">应用</button></label><button class="button button-secondary" id="loadPromotionCandidates" type="button">检查商品资格</button></div>
+      <div class="notice price-update-note" id="promotionJoinNotice">只有 Ozon 返回的活动候选商品可以加入；活动价采用 Ozon 建议值，可在“批量改促销价”中调整。</div>
+      <div class="inventory-list price-list promotion-join-list" id="promotionJoinList"><div class="empty-state">请先选择活动并检查商品资格。</div></div>
+      <div class="modal-message" id="promotionJoinMessage"></div><div class="modal-actions"><button class="button button-secondary" type="button" id="cancelPromotionJoin">取消</button><button class="button button-primary" type="submit" id="submitPromotionJoin" disabled>加入活动</button></div><div class="security-note">单次最多检查/加入 100 个商品。提交前服务端会再次确认活动仍有效、商品仍可加入；不符合条件的商品不会提交。</div>
+    </form>
+  </div>
+  <div class="modal-backdrop hidden" id="inventoryTransferModal" role="dialog" aria-modal="true" aria-labelledby="inventoryTransferTitle">
+    <form class="modal inventory-modal inventory-transfer-modal" id="inventoryTransferForm"><button class="modal-close" type="button" id="closeInventoryTransfer" aria-label="关闭">×</button><div class="eyebrow">INVENTORY TRANSFER</div><h2 id="inventoryTransferTitle">批量库存转移</h2><p class="modal-intro">将所选商品的库存从来源仓扣减，并增加到目标仓。提交前会重新读取 Ozon 当前库存；每批最多提交 50 个商品，避免超过 Ozon 单次 100 条库存记录的限制。</p>
+      <div class="inventory-transfer-route"><label class="field"><span>来源仓 A</span><select id="inventoryTransferFrom" aria-label="选择来源仓 A"></select></label><span class="inventory-transfer-arrow" aria-hidden="true">→</span><label class="field"><span>目标仓 B</span><select id="inventoryTransferTo" aria-label="选择目标仓 B"></select></label></div>
+      <div class="inventory-toolbar"><span class="subtle" id="inventoryTransferSelectionLabel">已选择 0 个商品</span><label class="inventory-quick-field"><span>统一转移（可选）</span><input id="inventoryTransferCommonQuantity" type="number" min="1" max="1000000000" step="1" placeholder="数量"><button class="button button-secondary" id="applyCommonTransfer" type="button">应用</button></label></div>
+      <div class="inventory-list inventory-transfer-list" id="inventoryTransferList"></div>
+      <div class="modal-message" id="inventoryTransferMessage"></div><div class="modal-actions"><button class="button button-secondary" type="button" id="cancelInventoryTransfer">取消</button><button class="button button-primary" type="submit" id="submitInventoryTransfer">确认库存转移</button></div><div class="security-note">单次最多转移 100 个商品，系统会按每批 50 个商品顺序提交。每个商品默认转移来源仓全部库存，数量留空也会自动按来源仓库存处理；来源仓库存必须能由 Ozon 明确返回，且不能为 0。提交后请刷新数据核对。若中途失败，前面已完成的批次不会自动回滚。</div>
+    </form>
+  </div>
+  <div class="modal-backdrop hidden" id="sourcingSettingsModal" role="dialog" aria-modal="true" aria-labelledby="sourcingSettingsTitle">
+    <form class="modal sourcing-settings-modal" id="sourcingSettingsForm"><button class="modal-close" type="button" id="closeSourcingSettings" aria-label="关闭">×</button><div class="eyebrow">SUPPLIER API CONNECTIONS</div><h2 id="sourcingSettingsTitle">货源 API 设置</h2><p class="modal-intro">分别填写拼多多开放平台和 1688 开放平台的商品接口凭据。未配置的平台会在搜索时显示为不可用，不影响另一个平台。</p>
+      <div class="sourcing-provider-block"><div class="sourcing-provider-heading"><strong>拼多多商品接口</strong><span class="api-state" id="pddApiState">未配置</span></div><label class="field"><span>Client ID</span><input name="pddClientId" autocomplete="off" placeholder="拼多多开放平台 Client ID；已配置时留空即可保留"></label><label class="field"><span>Client Secret</span><input name="pddClientSecret" type="password" autocomplete="new-password" placeholder="已配置时留空即可保留"></label><label class="field"><span>Access Token（如接口要求）</span><input name="pddAccessToken" type="password" autocomplete="new-password" placeholder="可留空；已配置时留空即可保留"></label></div>
+      <div class="sourcing-provider-block"><div class="sourcing-provider-heading"><strong>1688 商品接口</strong><span class="api-state" id="alibaba1688ApiState">未配置</span></div><label class="field"><span>App Key</span><input name="alibaba1688AppKey" autocomplete="off" placeholder="1688 开放平台 App Key；已配置时留空即可保留"></label><label class="field"><span>App Secret</span><input name="alibaba1688AppSecret" type="password" autocomplete="new-password" placeholder="已配置时留空即可保留"></label><label class="field"><span>Access Token</span><input name="alibaba1688AccessToken" type="password" autocomplete="new-password" placeholder="已配置时留空即可保留"></label></div>
+      <div class="modal-message" id="sourcingSettingsMessage"></div><div class="modal-actions"><button class="button button-secondary" type="button" id="cancelSourcingSettings">取消</button><button class="button button-primary" type="submit">保存货源设置</button></div><div class="security-note">保存后仅显示脱敏状态。请从各平台开放平台申请“商品搜索”权限，不要把密钥写入前端或提交到代码仓库。</div>
+    </form>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+legacy-api/.env
+legacy-api/.ozon-shops.json
+legacy-api/.store-data/
+legacy-api/.*-cache.json
+legacy-api/.pickup-reminders.json
+legacy-api/.ozon-rate-limits.json
+legacy-api/inventory-diagnostic.json

@@ -1,0 +1,27 @@
+{
+  "name": "ozon-dashboard-nextjs-migration",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n api,next -c cyan,green \"npm:dev:api\" \"npm:dev:next\"",
+    "dev:api": "node legacy-api/start.js",
+    "dev:next": "next dev --hostname 127.0.0.1 --port 3000",
+    "build": "next build",
+    "start": "concurrently -k -n api,next -c cyan,green \"npm:start:api\" \"npm:start:next\"",
+    "start:api": "node legacy-api/start.js",
+    "start:next": "next start --hostname 127.0.0.1 --port 3000",
+    "test:legacy": "node --test legacy-api/tests"
+  },
+  "dependencies": {
+    "next": "^16.4.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  }
+}
