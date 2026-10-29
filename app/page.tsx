@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import LogoutButton from "./logout-button";
+import AccountDataControls from "./account-data-controls";
 import { databasePool, sessionCookieName, userFromToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -17,10 +17,9 @@ async function Dashboard() {
     return (
       <main className="workspace">
         <header className="account-bar">
-          <span>当前帐号：{user.username}</span>
-          <LogoutButton />
+          <AccountDataControls username={user.username} />
         </header>
-        <iframe className="dashboard" title="Ozon 商家数据台" src="/legacy/index.html" allow="clipboard-read; clipboard-write" />
+        <iframe id="dashboard" className="dashboard" title="Ozon 商家数据台" src="/legacy/index.html" allow="clipboard-read; clipboard-write" />
       </main>
     );
   }

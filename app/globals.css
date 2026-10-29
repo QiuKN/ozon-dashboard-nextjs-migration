@@ -28,13 +28,41 @@ body {
   font: 14px/1.2 system-ui, sans-serif;
 }
 
-.account-bar button {
+.account-actions {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.account-actions button {
   padding: 6px 12px;
   border: 1px solid rgb(255 255 255 / 45%);
   border-radius: 6px;
   background: transparent;
   color: white;
   cursor: pointer;
+  white-space: nowrap;
+}
+
+.cleanup-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgb(12 20 32 / 58%); }
+.cleanup-dialog { width: min(100%, 480px); padding: 24px; border: 1px solid #dfe3e8; border-radius: 8px; background: white; color: #172b4d; font: 14px/1.6 system-ui, sans-serif; box-shadow: 0 16px 48px rgb(0 0 0 / 22%); }
+.cleanup-dialog h1 { margin: 0 0 14px; font-size: 20px; }
+.cleanup-dialog p { color: #42526e; }
+.cleanup-dialog label { display: grid; gap: 8px; margin-top: 18px; font-weight: 600; }
+.cleanup-dialog input { width: 100%; padding: 10px; border: 1px solid #a5adba; border-radius: 5px; font: inherit; }
+.cleanup-error { color: #bf2600 !important; }
+.cleanup-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.cleanup-buttons button { padding: 9px 14px; border: 1px solid #c1c7d0; border-radius: 5px; background: white; color: #172b4d; font: inherit; cursor: pointer; }
+.cleanup-buttons .cleanup-danger { border-color: #bf2600; background: #bf2600; color: white; }
+.cleanup-buttons button:disabled { cursor: not-allowed; opacity: .55; }
+
+@media (max-width: 520px) {
+  .account-bar { height: 52px; padding: 0 8px; font-size: 12px; }
+  .account-actions { gap: 5px; }
+  .account-actions button { padding: 5px 7px; font-size: 11px; }
+  .dashboard { height: calc(100% - 52px); }
 }
 
 .dashboard {
