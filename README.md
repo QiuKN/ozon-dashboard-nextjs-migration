@@ -25,4 +25,4 @@ Run `npm run test:legacy` to execute the migrated backend tests.
 
 ## Vercel deployment
 
-Connect the Neon database to the Vercel project so it provides `DATABASE_URL`. Set `DASHBOARD_USERNAME` and `DASHBOARD_PASSWORD` as Production environment variables to protect the dashboard and its APIs with browser sign-in. Redeploy after changing environment variables. The API creates its Neon state table automatically on first use.
+Connect the Neon database to the Vercel project so it provides `DATABASE_URL`. The first user can register from `/login`; every user gets a separate store list and state space. Set `AUTH_ALLOW_SIGNUP=false` after creating the accounts you need if public registration should be closed. Redeploy after changing environment variables. The API creates its Neon state and account tables automatically on first use.

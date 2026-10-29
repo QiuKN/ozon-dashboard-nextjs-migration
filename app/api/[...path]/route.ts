@@ -1,10 +1,10 @@
-import { Pool } from "@neondatabase/serverless";
 import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { createRequire } from "node:module";
 import type { NextRequest } from "next/server";
+import { databasePool, ensureAuthSchema, userFromRequest } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,10 +16,7 @@ const legacy = require("../../../legacy-api/server.js") as {
   withRequestDataRoot: <T>(root: string, handler: () => Promise<T>) => Promise<T>;
   resetRequestCaches: () => void;
 };
-const pool = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL })
-  : null;
-let schemaPromise: Promise<void> | null = null;
+const pool = databasePool();
 
 type LegacyResponse = {
   writeHead: (status: number, headers: Record<string, string>) => void;
@@ -28,17 +25,7 @@ type LegacyResponse = {
 
 async function ensureSchema() {
   if (!pool) throw new Error("DATABASE_URL 未设置，数据库尚未连接。");
-  schemaPromise ||= pool.query(`
-    CREATE TABLE IF NOT EXISTS ozon_app_state (
-      state_key TEXT PRIMARY KEY,
-      state_value TEXT NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `).then(() => undefined).catch(error => {
-    schemaPromise = null;
-    throw error;
-  });
-  await schemaPromise;
+  await ensureAuthSchema();
 }
 
 async function listFiles(root: string, directory = root): Promise<string[]> {
@@ -51,7 +38,7 @@ async function listFiles(root: string, directory = root): Promise<string[]> {
   return files;
 }
 
-async function withDatabaseState<T>(handler: () => Promise<T>) {
+async function withDatabaseState<T>(userId: string, handler: () => Promise<T>) {
   if (!pool) throw new Error("Vercel 项目缺少 Neon 的 DATABASE_URL 环境变量。");
   await ensureSchema();
   const client = await pool.connect();
@@ -60,7 +47,8 @@ async function withDatabaseState<T>(handler: () => Promise<T>) {
     // Existing business logic uses synchronous file operations, so one database lock protects each request's read-modify-write cycle.
     await client.query("SELECT pg_advisory_lock(591034270)");
     const stored = await client.query<{ state_key: string; state_value: string }>(
-      "SELECT state_key, state_value FROM ozon_app_state"
+      "SELECT state_key, state_value FROM ozon_app_state WHERE owner_id = $1",
+      [userId]
     );
     for (const row of stored.rows) {
       const target = path.resolve(root, row.state_key);
@@ -78,14 +66,14 @@ async function withDatabaseState<T>(handler: () => Promise<T>) {
         for (const key of files) {
           const value = await readFile(path.join(root, key), "utf8");
           await client.query(
-            `INSERT INTO ozon_app_state (state_key, state_value, updated_at)
-             VALUES ($1, $2, NOW()) ON CONFLICT (state_key)
+            `INSERT INTO ozon_app_state (owner_id, state_key, state_value, updated_at)
+             VALUES ($1, $2, $3, NOW()) ON CONFLICT (owner_id, state_key)
              DO UPDATE SET state_value = EXCLUDED.state_value, updated_at = NOW()`,
-            [key, value]
+            [userId, key, value]
           );
         }
         for (const row of stored.rows) {
-          if (!existing.has(row.state_key)) await client.query("DELETE FROM ozon_app_state WHERE state_key = $1", [row.state_key]);
+          if (!existing.has(row.state_key)) await client.query("DELETE FROM ozon_app_state WHERE owner_id = $1 AND state_key = $2", [userId, row.state_key]);
         }
         await client.query("COMMIT");
       } catch (error) {
@@ -118,11 +106,14 @@ async function handle(request: NextRequest) {
   }
   if (!pool) return Response.json({ error: "Vercel 项目缺少 Neon 数据库连接，请检查 DATABASE_URL 环境变量。" }, { status: 503 });
 
+  const user = await userFromRequest(request);
+  if (!user) return Response.json({ error: "登录状态已失效，请重新登录。" }, { status: 401 });
+
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength > 1_500_000) return Response.json({ error: "请求内容过大" }, { status: 413 });
   const body = request.method === "GET" ? Buffer.alloc(0) : Buffer.from(await request.arrayBuffer());
   if (body.length > 1_500_000) return Response.json({ error: "请求内容过大" }, { status: 413 });
-  return withDatabaseState(async () => new Promise<Response>((resolve, reject) => {
+  return withDatabaseState(user.id, async () => new Promise<Response>((resolve, reject) => {
     const headers = Object.fromEntries(request.headers.entries());
     const internalOrigin = process.env.LEGACY_API_ORIGIN || "http://127.0.0.1:8788";
     headers.origin = internalOrigin;
