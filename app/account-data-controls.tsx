@@ -3,40 +3,56 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const cleanupOptions = [
+  { id: "shops", title: "店铺与接口配置", detail: "已绑定店铺、Ozon API 密钥、货源与快递接口配置" },
+  { id: "cache", title: "商品、订单、余额等缓存", detail: "保存的商品分析、订单、库存与余额快照；之后可重新同步" },
+  { id: "reminders", title: "到货提醒记录与设置", detail: "已发送记录、提醒模板和自动提醒开关" },
+  { id: "rateLimits", title: "接口限流记录", detail: "接口冷却与限流状态；清理后可能较快再次触发限流" },
+  { id: "browser", title: "当前浏览器偏好", detail: "记住的店铺、自动刷新设置和余额提醒标记" }
+] as const;
+
 // Keep account-level cleanup separate from ordinary dashboard controls because it is irreversible.
 export default function AccountDataControls({ username }: { username: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function clearData() {
-    if (confirmation !== "清空我的数据") return;
+    if (confirmation !== "清理所选数据" || selectedGroups.length === 0) return;
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/account/clear-data", { method: "POST" });
+      const response = await fetch("/api/account/clear-data", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ groups: selectedGroups })
+      });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "清理失败，请重试。");
 
       const frame = document.querySelector<HTMLIFrameElement>("#dashboard");
-      try {
-        const storage = frame?.contentWindow?.localStorage;
-        storage?.removeItem("ozon-dashboard-shop-id");
-        storage?.removeItem("ozon-dashboard-auto-refresh-v2");
-        storage?.removeItem("ozon-dashboard-auto-refresh");
-        frame?.contentWindow?.sessionStorage.removeItem("ozon-dashboard-return-view");
-        for (let index = storage ? storage.length - 1 : -1; index >= 0; index -= 1) {
-          const key = storage?.key(index);
-          if (key?.startsWith("ozon-balance-alerted-v1:")) storage?.removeItem(key);
+      if (selectedGroups.includes("browser")) {
+        try {
+          const storage = frame?.contentWindow?.localStorage;
+          storage?.removeItem("ozon-dashboard-shop-id");
+          storage?.removeItem("ozon-dashboard-auto-refresh-v2");
+          storage?.removeItem("ozon-dashboard-auto-refresh");
+          frame?.contentWindow?.sessionStorage.removeItem("ozon-dashboard-return-view");
+          for (let index = storage ? storage.length - 1 : -1; index >= 0; index -= 1) {
+            const key = storage?.key(index);
+            if (key?.startsWith("ozon-balance-alerted-v1:")) storage?.removeItem(key);
+          }
+        } catch {
+          // Server data is already removed; browser preferences are best-effort when storage is blocked.
         }
-      } catch {
-        // Server data is already removed; browser preferences are best-effort when storage is blocked.
       }
       if (frame) frame.src = "/legacy/index.html";
       setOpen(false);
       setConfirmation("");
+      setSelectedGroups([]);
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "清理失败，请重试。");
@@ -55,23 +71,35 @@ export default function AccountDataControls({ username }: { username: string }) 
     <>
       <div className="account-actions">
         <span>当前帐号：{username}</span>
-        <button type="button" onClick={() => { setOpen(true); setError(""); }}>清理我的数据</button>
+        <button type="button" onClick={() => { setOpen(true); setError(""); setSelectedGroups([]); setConfirmation(""); }}>清理我的数据</button>
         <button type="button" onClick={logout}>退出登录</button>
       </div>
       {open && (
         <div className="cleanup-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setOpen(false); }}>
           <section className="cleanup-dialog" role="dialog" aria-modal="true" aria-labelledby="cleanup-title">
             <h1 id="cleanup-title">清理 {username} 的数据</h1>
-            <p>此操作会删除此帐号保存的全部店铺与 API 密钥、店铺设置、缓存数据、到货提醒记录和限流记录，并清除此浏览器记住的店铺与刷新偏好。</p>
-            <p>帐号和登录状态会保留。不会删除 Ozon 上的商品、订单或其他平台数据。</p>
+            <p>勾选要清理的内容。未勾选的数据会保留；帐号和登录状态始终保留。</p>
+            <div className="cleanup-options">
+              {cleanupOptions.map(option => (
+                <label className="cleanup-option" key={option.id}>
+                  <input
+                    type="checkbox"
+                    checked={selectedGroups.includes(option.id)}
+                    onChange={event => setSelectedGroups(current => event.target.checked ? [...current, option.id] : current.filter(group => group !== option.id))}
+                  />
+                  <span><strong>{option.title}</strong><small>{option.detail}</small></span>
+                </label>
+              ))}
+            </div>
+            <p>不会删除 Ozon 或其他平台上的商品、订单及业务数据。</p>
             <label>
-              输入 <strong>清空我的数据</strong> 确认
+              输入 <strong>清理所选数据</strong> 确认
               <input value={confirmation} onChange={event => setConfirmation(event.target.value)} autoComplete="off" />
             </label>
             {error && <p className="cleanup-error" role="alert">{error}</p>}
             <div className="cleanup-buttons">
               <button type="button" disabled={busy} onClick={() => setOpen(false)}>取消</button>
-              <button type="button" className="cleanup-danger" disabled={busy || confirmation !== "清空我的数据"} onClick={clearData}>{busy ? "正在清理…" : "永久清理"}</button>
+              <button type="button" className="cleanup-danger" disabled={busy || selectedGroups.length === 0 || confirmation !== "清理所选数据"} onClick={clearData}>{busy ? "正在清理…" : "清理所选内容"}</button>
             </div>
           </section>
         </div>
