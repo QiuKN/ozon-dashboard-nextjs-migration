@@ -32,7 +32,7 @@ export default function ProductCaptureGuidePage() {
         <article className={styles.article}>
           <section id="install">
             <h2>一、下载和安装</h2>
-            <p>插件目前以 Chrome/Edge 的“未打包扩展”方式安装。下载后需要先解压 ZIP，再把解压后的文件夹加载到浏览器。</p>
+            <p>插件目前以 Chrome 116+ / Chromium Edge 的“未打包扩展”方式安装。下载后需要先解压 ZIP，再把解压后的文件夹加载到浏览器。</p>
             <ol>
               <li>点击页面顶部的“下载浏览器插件”。</li>
               <li>把下载的 <code>ozon-product-capture-extension.zip</code> 解压到一个不会被删除的文件夹。</li>
@@ -59,12 +59,11 @@ export default function ProductCaptureGuidePage() {
             <div className={styles.warning}><strong>地址要完整：</strong>必须包含 <code>https://</code> 和 <code>/product-capture</code>，不要填写登录页地址，也不要在地址后面添加商品参数。</div>
             <h3>设置自动采集条件</h3>
             <ol>
-              <li>点击浏览器右上角的插件图标，打开“<strong>Ozon 自动采集设置</strong>”弹框。</li>
-              <li>勾选“启用自动采集”。默认只在 Ozon 商品详情页运行，不会扫描搜索结果列表。</li>
-              <li>在“包含分类”填写允许采集的分类，例如 <code>手机, 美妆</code>；留空表示不限制分类。</li>
-              <li>在“排除分类”和“排除品牌”填写不需要的内容，例如 <code>配件, 二手</code> 或 <code>Apple, Xiaomi</code>。</li>
+              <li>点击浏览器右上角的插件图标，打开 Ozon 选品侧栏。</li>
+              <li>首次使用先点“先打开 Ozon 首页”读取分类；此时自动采集会暂停。返回侧栏后，从“包含分类”和“排除分类”中选择分类，可多选；留空表示不按分类筛选。</li>
+              <li>在“排除品牌”填写不需要的品牌，例如 <code>Apple, Xiaomi</code>。</li>
               <li>按需要填写最低价格、最高价格和最低评分。页面读不到价格或评分时，不会通过对应的限制。</li>
-              <li>勾选需要保存的字段，点击“保存设置”。设置只保存在当前浏览器。</li>
+              <li>勾选需要保存的字段。设置只保存在当前浏览器。</li>
             </ol>
             <div className={styles.tip}><strong>筛选规则：</strong>包含分类至少要命中一个关键词；排除分类和排除品牌命中任意一个关键词就会跳过；价格和评分按数值比较，关键词不区分大小写。</div>
           </section>
@@ -72,10 +71,12 @@ export default function ProductCaptureGuidePage() {
           <section id="capture">
             <h2>三、采集商品</h2>
             <ol>
-              <li>在 Chrome 或 Edge 中打开 Ozon 商品详情页，例如 <code>ozon.ru/product/...</code>。</li>
+              <li>在侧栏输入商品关键词，点击“开启采集并打开 Ozon”；自动采集会开启，Ozon 搜索结果会在当前标签页打开，侧栏仍留在浏览器旁边。</li>
+              <li>也可以在侧栏打开 Ozon 首页，然后在网站内搜索和切换分类。</li>
+              <li>在 Ozon 中打开商品列表或详情页，例如分类搜索结果或 <code>ozon.ru/product/...</code>。</li>
               <li>等待商品标题、价格和图片加载完成。</li>
               <li>插件会自动读取当前商品，按刚才保存的分类、品牌、价格和评分条件判断。</li>
-              <li>符合条件的商品会自动进入浏览器本地队列，不需要逐个点击按钮。</li>
+              <li>列表页中当前已加载且符合条件的商品会自动进入浏览器本地队列；向下滚动后，插件会继续采集新出现的商品卡片。</li>
               <li>打开选品采集页，队列中的记录会自动导入 IndexedDB；选品页可以保持打开，也可以稍后再打开。</li>
               <li>如果只想临时采集一条商品，可以点击商品页右下角的“手动采集”，再打开选品页。</li>
             </ol>
@@ -124,9 +125,9 @@ export default function ProductCaptureGuidePage() {
             <h2>六、常见问题</h2>
             <div className={styles.faq}>
               <h3>自动采集没有发生</h3>
-              <p>点击插件图标检查“启用自动采集”是否勾选，确认当前页面是 Ozon 商品详情页，并刷新扩展和商品页。若填写了分类、品牌、价格或评分条件，当前商品不满足条件时会被跳过。</p>
+              <p>点击插件图标检查“启用自动采集”是否勾选，确认当前页面是 Ozon 商品详情页或商品列表页，并刷新扩展和 Ozon 页面。若填写了分类、品牌、价格或评分条件，当前商品不满足条件时会被跳过。</p>
               <h3>看不到“手动采集”按钮</h3>
-              <p>确认当前地址是 Ozon 商品详情页，而不是搜索结果页或卖家后台；然后刷新商品页。也可以在扩展管理页确认插件已开启，并重新加载插件。</p>
+              <p>商品详情页显示“手动采集”按钮；商品列表页会显示已加入队列的数量。若没看到侧栏，请检查浏览器版本是否为 Chrome 116+ 或新版 Chromium Edge。</p>
               <h3>点击后打开的是 localhost</h3>
               <p>说明还没有修改 <code>config.js</code>。把 <code>OZON_CAPTURE_APP_URL</code> 改成实际部署的 <code>/product-capture</code> 地址，保存后在扩展管理页点击刷新。</p>
               <h3>自动采集的记录没有出现在选品页</h3>
@@ -136,16 +137,15 @@ export default function ProductCaptureGuidePage() {
               <h3>导出 Excel 失败</h3>
               <p>检查网络是否允许加载 Excel 导出组件，然后刷新选品页面重试。也可以减少一次导出的记录数量，先按筛选条件分批导出。</p>
               <h3>浏览器提示扩展权限</h3>
-              <p>插件需要读取 Ozon 商品详情页，并与项目的选品页传递本地队列；不读取密码、Cookie 或其他网站页面，也不会把选品数据发送到 Neon。</p>
+              <p>插件只在 Ozon 页面读取分类和商品卡片，并与项目的选品页传递本地队列；不读取密码、Cookie 或其他网站页面，也不会把选品数据发送到 Neon。</p>
             </div>
           </section>
 
           <section id="limits">
             <h2>七、当前版本范围</h2>
             <ul>
-              <li>当前版本支持打开 Ozon 商品详情页后按条件自动采集，也保留单条手动采集。</li>
-              <li>暂不支持搜索结果页自动批量采集。</li>
-              <li>暂不支持后台持续扫描、自动翻页或高频请求。</li>
+              <li>当前版本支持商品详情页自动采集，以及列表页已加载商品的自动采集；商品详情页也保留单条手动采集。</li>
+              <li>列表只读取当前页面已加载的商品；滚动后继续读取，不会自动翻页或后台持续请求。</li>
               <li>暂不包含 1688 图片找同款和供应商关联。</li>
               <li>暂不读取卖家后台的自有商品、订单或店铺数据。</li>
               <li>暂不提供账号之间的云端同步。</li>

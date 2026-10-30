@@ -7,6 +7,7 @@
 
   const APP_URL = globalThis.OZON_CAPTURE_APP_URL || "https://ozon-dashboard-nextjs-migration.vercel.app/product-capture";
   const SETTINGS_KEY = "ozonCaptureSettings";
+  const CATEGORY_OPTIONS_KEY = "ozonCaptureCategoryOptions";
   const BUTTON_ID = "ozon-product-capture-button";
   const PANEL_ID = "ozon-product-capture-panel";
   const DEFAULT_SETTINGS = {
@@ -23,6 +24,9 @@
   let settings = DEFAULT_SETTINGS;
   let lastAutoKey = "";
   let lastUrl = location.href;
+  let statusButton = null;
+  let queuedListCount = 0;
+  const capturedListKeys = new Set();
 
   function text(value) {
     return typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
@@ -92,6 +96,82 @@
   function breadcrumbText() {
     const values = [...document.querySelectorAll('[data-widget*="breadcrumb"] a, nav[aria-label*="breadcrumb" i] a')].map(node => text(node.textContent)).filter(Boolean);
     return values.join(" / ");
+  }
+
+  // Build selectable categories only from labels Ozon actually renders on visited pages.
+  function discoverCategories() {
+    const labels = new Set(breadcrumbText().split("/").map(text).filter(Boolean));
+    for (const anchor of document.querySelectorAll('a[href*="/category/"]')) {
+      const label = text(anchor.textContent) || text(anchor.getAttribute("aria-label")) || text(anchor.title);
+      if (label && label.length < 100) labels.add(label);
+    }
+    const options = [...labels].map(label => ({ label, value: label.toLowerCase() }));
+    if (options.length) {
+      chrome.storage.local.get(CATEGORY_OPTIONS_KEY).then(result => {
+        const existing = Array.isArray(result[CATEGORY_OPTIONS_KEY]) ? result[CATEGORY_OPTIONS_KEY] : [];
+        const merged = new Map(existing.map(item => [item.value, item]));
+        for (const option of options) merged.set(option.value, option);
+        const next = [...merged.values()].sort((left, right) => left.label.localeCompare(right.label)).slice(0, 300);
+        if (next.length === existing.length && next.every((item, index) => item.value === existing[index]?.value && item.label === existing[index]?.label)) return undefined;
+        return chrome.storage.local.set({ [CATEGORY_OPTIONS_KEY]: next });
+      }).catch(() => undefined);
+    }
+    return breadcrumbText();
+  }
+
+  function isProductPage() {
+    return /\/product\/[^/]+/i.test(location.pathname);
+  }
+
+  // Product cards do not have one stable Ozon class, so use the nearest price-and-image container.
+  function listingCard(anchor) {
+    let candidate = anchor;
+    let node = anchor;
+    for (let depth = 0; depth < 6 && node.parentElement; depth += 1) {
+      node = node.parentElement;
+      const content = text(node.innerText || node.textContent);
+      if (content.length > 1500) break;
+      if (/[₽]|руб\.?|RUB/i.test(content) && node.querySelector("img")) {
+        candidate = node;
+        break;
+      }
+    }
+    return candidate;
+  }
+
+  // Capture only rendered product links; scrolling and Ozon's own lazy loading reveal the next batch.
+  function collectListingProducts(category) {
+    const records = new Map();
+    for (const anchor of document.querySelectorAll('a[href*="/product/"]')) {
+      let url;
+      try { url = new URL(anchor.href, location.href); } catch { continue; }
+      const match = url.pathname.match(/-(\d+)(?:\/|$)/);
+      const productId = match?.[1] || "";
+      if (!productId || records.has(productId)) continue;
+      const card = listingCard(anchor);
+      const image = card.querySelector("img");
+      const title = text(anchor.getAttribute("aria-label")) || text(anchor.title) || text(image?.alt) || text(anchor.innerText || anchor.textContent).split("\n").map(text).find(value => value.length > 12) || "";
+      if (!title) continue;
+      const cardText = text(card.innerText || card.textContent);
+      const priceMatch = cardText.match(/([\d\s\u00a0.,]+)\s*(₽|руб\.?|RUB)/i);
+      const priceText = priceMatch ? priceMatch[0].trim() : "";
+      const priceValue = priceMatch ? numberOrNull(priceMatch[1]) : null;
+      const ratingNode = card.querySelector('[data-widget*="rating"], [aria-label*="rating" i], [aria-label*="рейтинг" i]');
+      const ratingText = text(ratingNode?.getAttribute("aria-label")) || text(ratingNode?.textContent);
+      const ratingMatch = ratingText.match(/[0-5](?:[.,]\d+)?/);
+      const ratingValue = ratingMatch ? numberOrNull(ratingMatch[0]) : null;
+      const reviewsText = ratingMatch ? ratingText.replace(ratingMatch[0], "") : ratingText;
+      const reviewsMatch = reviewsText.match(/([\d\s\u00a0]+)\s*(?:review|отзыв|оцен)/i);
+      const imageUrls = [...new Set([...card.querySelectorAll("img")].map(item => item.currentSrc || item.src).filter(value => /^https?:\/\//i.test(value)))].slice(0, 12);
+      records.set(productId, {
+        source: "ozon", productId, url: url.href, title, imageUrls, priceText, priceValue,
+        currency: priceText ? "RUB" : "", sellerName: "", sellerUrl: "", brandName: "",
+        ratingText: ratingValue == null ? "" : String(ratingValue), ratingValue,
+        reviewCount: reviewsMatch ? numberOrNull(reviewsMatch[1]) : null, salesText: "", stockText: "",
+        category, variantsText: "", description: "", capturedAt: Date.now(), status: "success"
+      });
+    }
+    return [...records.values()];
   }
 
   function collectProduct() {
@@ -175,12 +255,38 @@
   }
 
   function autoCapture() {
+    if (!isProductPage()) return;
     void loadSettings().then(() => {
+      discoverCategories();
       const record = collectProduct();
       const key = record.productId || record.url;
       if (!key || !record.title || key === lastAutoKey || !passesFilters(record)) return;
       lastAutoKey = key;
       chrome.runtime.sendMessage({ type: "AUTO_CAPTURE", record: applyFieldSelection(record) }).catch(() => undefined);
+    });
+  }
+
+  // Observe newly rendered cards without paging or making background requests to Ozon.
+  function autoCaptureListing() {
+    discoverCategories();
+    void loadSettings().then(() => {
+      if (!settings.enabled) {
+        if (statusButton) statusButton.textContent = "自动采集已关闭";
+        return;
+      }
+      for (const record of collectListingProducts(breadcrumbText())) {
+        const key = record.productId || record.url;
+        if (!key || capturedListKeys.has(key) || !passesFilters(record)) continue;
+        capturedListKeys.add(key);
+        chrome.runtime.sendMessage({ type: "AUTO_CAPTURE", record: applyFieldSelection(record) }).then(response => {
+          if (!response?.ok) {
+            capturedListKeys.delete(key);
+            return;
+          }
+          queuedListCount += 1;
+          if (statusButton) statusButton.textContent = "列表自动采集 · 已加入 " + queuedListCount + " 件";
+        }).catch(() => capturedListKeys.delete(key));
+      }
     });
   }
 
@@ -212,28 +318,44 @@
   }
 
   const button = document.createElement("button");
+  statusButton = button;
   button.id = BUTTON_ID;
   button.type = "button";
-  button.textContent = "手动采集";
-  button.title = "自动采集已按插件设置运行；点击此处可手动采集当前商品";
+  button.textContent = isProductPage() ? "手动采集" : "列表自动采集 · 已加入 0 件";
+  button.title = isProductPage() ? "自动采集已按插件设置运行；点击此处可手动采集当前商品" : "自动采集当前列表中已加载的商品，滚动页面后会继续读取新商品";
   button.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:2147483647;padding:10px 14px;border:0;border-radius:9px;color:#fff;background:#126b5b;box-shadow:0 8px 24px rgba(18,107,91,.3);cursor:pointer;font:700 13px system-ui,sans-serif";
-  button.addEventListener("click", () => showPreview(collectProduct()));
+  if (isProductPage()) button.addEventListener("click", () => showPreview(collectProduct()));
+  else button.addEventListener("click", () => {
+    autoCaptureListing();
+    button.textContent = "正在读取列表商品";
+    window.setTimeout(() => { button.textContent = "列表自动采集 · 已加入 " + queuedListCount + " 件"; }, 1600);
+  });
   document.body.appendChild(button);
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local" || !changes[SETTINGS_KEY]) return;
     settings = normalizedSettings(changes[SETTINGS_KEY].newValue);
     lastAutoKey = "";
-    autoCapture();
+    isProductPage() ? autoCapture() : autoCaptureListing();
   });
 
   // A short delay lets Ozon finish rendering structured data before the first automatic capture.
-  window.setTimeout(autoCapture, 1800);
+  window.setTimeout(() => isProductPage() ? autoCapture() : autoCaptureListing(), 1800);
+  const listObserver = new MutationObserver(() => {
+    if (!isProductPage()) {
+      window.clearTimeout(listObserver.timer);
+      listObserver.timer = window.setTimeout(autoCaptureListing, 650);
+    }
+  });
+  listObserver.observe(document.documentElement, { childList: true, subtree: true });
   window.setInterval(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       lastAutoKey = "";
-      window.setTimeout(autoCapture, 1200);
+      capturedListKeys.clear();
+      queuedListCount = 0;
+      if (!isProductPage()) button.textContent = "列表自动采集 · 已加入 0 件";
+      window.setTimeout(() => isProductPage() ? autoCapture() : autoCaptureListing(), 1200);
     }
   }, 2000);
 })();

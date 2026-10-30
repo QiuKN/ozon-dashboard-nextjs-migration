@@ -1,23 +1,24 @@
 {
   "manifest_version": 3,
   "name": "Ozon 选品采集助手",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "按筛选条件自动采集 Ozon 商品，并交给本地选品页保存和导出。",
-  "permissions": ["storage"],
+  "minimum_chrome_version": "116",
+  "permissions": ["storage", "sidePanel"],
   "host_permissions": [
-    "https://ozon.ru/product/*",
-    "https://*.ozon.ru/product/*",
-    "https://ozon.com/product/*",
-    "https://*.ozon.com/product/*",
+    "https://ozon.ru/*",
+    "https://*.ozon.ru/*",
+    "https://ozon.com/*",
+    "https://*.ozon.com/*",
     "https://ozon-dashboard-nextjs-migration.vercel.app/*"
   ],
   "content_scripts": [
     {
       "matches": [
-        "https://ozon.ru/product/*",
-        "https://*.ozon.ru/product/*",
-        "https://ozon.com/product/*",
-        "https://*.ozon.com/product/*"
+        "https://ozon.ru/*",
+        "https://*.ozon.ru/*",
+        "https://ozon.com/*",
+        "https://*.ozon.com/*"
       ],
       "js": ["config.js", "content.js"],
       "run_at": "document_idle"
@@ -29,5 +30,6 @@
     }
   ],
   "background": { "service_worker": "service-worker.js" },
-  "action": { "default_title": "设置 Ozon 自动采集", "default_popup": "popup.html" }
+  "action": { "default_title": "打开 Ozon 选品侧栏" },
+  "side_panel": { "default_path": "popup.html" }
 }

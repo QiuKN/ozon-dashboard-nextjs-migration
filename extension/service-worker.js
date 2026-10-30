@@ -16,6 +16,10 @@ const DEFAULT_SETTINGS = {
 };
 
 chrome.runtime.onInstalled.addListener(() => {
+  // Keep the Ozon tab visible while the user opens and adjusts capture settings in the side panel.
+  if (chrome.sidePanel?.setPanelBehavior) {
+    void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  }
   chrome.storage.local.get(SETTINGS_KEY).then(result => {
     if (!result[SETTINGS_KEY]) return chrome.storage.local.set({ [SETTINGS_KEY]: DEFAULT_SETTINGS });
     return undefined;
