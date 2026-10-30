@@ -4,6 +4,31 @@
   // Keep settings small and human-readable because they are stored only in the browser profile.
   const SETTINGS_KEY = "ozonCaptureSettings";
   const CATEGORY_OPTIONS_KEY = "ozonCaptureCategoryOptions";
+  // Seed common Ozon top-level categories; page discovery adds the exact subcategories available to the shop.
+  const builtInCategoryOptions = [
+    ["电子产品", "Электроника"],
+    ["服装", "Одежда"],
+    ["鞋类", "Обувь"],
+    ["家居与园艺", "Дом и сад"],
+    ["儿童用品", "Детские товары"],
+    ["美容与健康", "Красота и здоровье"],
+    ["家用电器", "Бытовая техника"],
+    ["运动与休闲", "Спорт и отдых"],
+    ["建材与装修", "Строительство и ремонт"],
+    ["汽车用品", "Автотовары"],
+    ["食品", "Продукты питания"],
+    ["图书", "Книги"],
+    ["文具", "Канцтовары"],
+    ["宠物用品", "Товары для животных"],
+    ["珠宝", "Ювелирные изделия"],
+    ["家具", "Мебель"],
+    ["工具", "Инструменты"],
+    ["爱好与手工", "Хобби и творчество"],
+    ["旅行与户外", "Туризм"],
+    ["园艺用品", "Сад и огород"],
+    ["家居清洁", "Бытовая химия"],
+    ["成人用品", "Товары для взрослых"]
+  ].map(([translated, ozonName]) => ({ label: translated + "（" + ozonName + "）", value: ozonName.toLowerCase() }));
   const defaults = {
     enabled: true,
     categories: [],
@@ -62,7 +87,8 @@
   function applyStoredData(result) {
     const settings = { ...defaults, ...(result[SETTINGS_KEY] || {}), fields: { ...defaults.fields, ...(result[SETTINGS_KEY]?.fields || {}) } };
     document.querySelector("#enabled").checked = settings.enabled;
-    const options = Array.isArray(result[CATEGORY_OPTIONS_KEY]) ? result[CATEGORY_OPTIONS_KEY] : [];
+    const discovered = Array.isArray(result[CATEGORY_OPTIONS_KEY]) ? result[CATEGORY_OPTIONS_KEY] : [];
+    const options = [...new Map([...builtInCategoryOptions, ...discovered].map(option => [option.value, option])).values()];
     setOptions("categories", options, settings.categories);
     setOptions("excludedCategories", options, settings.excludedCategories);
     setList("excludedBrands", settings.excludedBrands);

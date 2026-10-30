@@ -81,10 +81,12 @@ test("shows discovered Ozon categories as choices and saves selected values", as
 
   vm.runInNewContext(popupScript, { document, chrome, Promise, URL, window: { setInterval() {} } });
   await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(elements["#categories"].options.map(option => option.textContent), ["Electronics", "Home"]);
+  assert.equal(elements["#categories"].options.some(option => option.value === "электроника"), true);
+  assert.equal(elements["#categories"].options.some(option => option.value === "electronics"), true);
+  assert.equal(elements["#categories"].options.some(option => option.value === "home"), true);
 
-  elements["#categories"].options[1].selected = true;
-  elements["#excludedCategories"].options[0].selected = true;
+  elements["#categories"].options.find(option => option.value === "home").selected = true;
+  elements["#excludedCategories"].options.find(option => option.value === "electronics").selected = true;
   submit({ preventDefault() {} });
   await new Promise(resolve => setImmediate(resolve));
 
