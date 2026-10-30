@@ -5,7 +5,8 @@
   if (globalThis.__OZON_CAPTURE_INSTALLED) return;
   globalThis.__OZON_CAPTURE_INSTALLED = true;
 
-  const APP_URL = globalThis.OZON_CAPTURE_APP_URL || "http://localhost:3000/product-capture";
+  // Keep the production page as a safe fallback when config.js is not loaded by the browser.
+  const APP_URL = globalThis.OZON_CAPTURE_APP_URL || "https://ozon-dashboard-nextjs-migration.vercel.app/product-capture";
   const BUTTON_ID = "ozon-product-capture-button";
   const PANEL_ID = "ozon-product-capture-panel";
 

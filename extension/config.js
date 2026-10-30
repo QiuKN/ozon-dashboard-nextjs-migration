@@ -1,2 +1,2 @@
-// Change this URL to the deployed Next.js product-capture page before loading the extension.
-globalThis.OZON_CAPTURE_APP_URL = "http://localhost:3000/product-capture";
+// Use the deployed Next.js product-capture page so the extension opens the shared Vercel app.
+globalThis.OZON_CAPTURE_APP_URL = "https://ozon-dashboard-nextjs-migration.vercel.app/product-capture";

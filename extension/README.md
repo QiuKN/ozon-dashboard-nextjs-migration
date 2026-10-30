@@ -4,7 +4,7 @@
 
 ## 使用方法
 
-1. 打开 extension/config.js，把 OZON_CAPTURE_APP_URL 改成部署后的地址，例如 https://你的域名.vercel.app/product-capture。
+1. 站内下载的最新版已经默认使用 https://ozon-dashboard-nextjs-migration.vercel.app/product-capture；如果使用自定义域名，再打开 extension/config.js 修改 OZON_CAPTURE_APP_URL。
 2. 打开 Chrome 或 Edge 的扩展管理页，开启“开发者模式”。
 3. 选择“加载已解压的扩展”，选择本目录的 extension 文件夹。
 4. 打开项目的 /product-capture 页面。

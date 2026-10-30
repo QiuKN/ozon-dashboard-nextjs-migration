@@ -7,7 +7,7 @@ export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   // Product capture is browser-local and has no account or server data to protect.
   // The local capture page and its static extension package must remain downloadable before login.
-  if (pathname === "/login" || pathname === "/product-capture" || pathname.startsWith("/downloads/") || pathname.startsWith("/api/auth/") || pathname.startsWith("/api/")) {
+  if (pathname === "/login" || pathname === "/product-capture" || pathname.startsWith("/product-capture/") || pathname.startsWith("/downloads/") || pathname.startsWith("/api/auth/") || pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
   if (!request.cookies.has("ozon_session")) {

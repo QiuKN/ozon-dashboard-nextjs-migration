@@ -298,7 +298,7 @@ export default function ProductCaptureWorkspace() {
     <main className={styles.page}>
       <header className={styles.header}>
         <div><p className={styles.eyebrow}>OZON PRODUCT CAPTURE</p><h1>选品采集</h1><p className={styles.subtitle}>只保存在当前浏览器，可随时导出 Excel，不写入 Neon。</p></div>
-        <nav className={styles.nav} aria-label="页面导航"><a className={styles.download} href="/downloads/ozon-product-capture-extension.zip" download>下载浏览器插件</a><a href="/">返回 Ozon 工作台</a><a href="/sales-report">销售报告</a></nav>
+        <nav className={styles.nav} aria-label="页面导航"><a className={styles.download} href="/downloads/ozon-product-capture-extension.zip" download>下载浏览器插件</a><a href="/product-capture/guide">插件使用文档</a><a href="/">返回 Ozon 工作台</a><a href="/sales-report">销售报告</a></nav>
       </header>
       <section className={styles.toolbar}>
         <div><strong>{records.length}</strong><span> 条本地记录</span></div>
