@@ -83,7 +83,14 @@ body {
 
 .sales-report-shell { min-height: 100dvh; background: #f4f7f8; }
 .sales-report-content { min-height: calc(100dvh - 42px); }
+/* Keep the report navigation below the shared account bar so the platform link stays reachable. */
+.sales-report-content .sidebar { top: 42px; }
 .sales-report-error { display: grid; min-height: 60vh; place-content: center; gap: 12px; padding: 32px; color: #15232d; font-family: system-ui, sans-serif; }
 .sales-report-error h1, .sales-report-error p { margin: 0; }
 .sales-report-error p { color: #6c7c85; }
 .sales-report-error button { width: fit-content; min-height: 38px; padding: 0 14px; border: 0; border-radius: 8px; color: #fff; background: #126b5b; cursor: pointer; }
+
+@media (max-width: 520px) {
+  /* The shared account bar is taller on narrow screens. */
+  .sales-report-content .sidebar { top: 52px; }
+}
