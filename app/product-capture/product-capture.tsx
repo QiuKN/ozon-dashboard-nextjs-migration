@@ -37,6 +37,8 @@ type ProductRecord = {
 
 type CapturedProduct = Partial<ProductRecord> & { source?: string };
 
+type BackgroundCaptureJob = { id: string; status: string; maxItems: number; capturedCount: number; reason?: string };
+
 declare global {
   interface Window {
     XLSX?: {
@@ -209,7 +211,11 @@ export default function ProductCaptureWorkspace() {
   const [notice, setNotice] = useState("正在读取浏览器本地选品记录…");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [captureKeyword, setCaptureKeyword] = useState("");
+  const [captureLimit, setCaptureLimit] = useState(100);
+  const [captureJob, setCaptureJob] = useState<BackgroundCaptureJob | null>(null);
   const importingQueue = useRef(false);
+  const captureStartTimer = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -284,6 +290,25 @@ export default function ProductCaptureWorkspace() {
     return () => window.removeEventListener("message", onExtensionMessage);
   }, [database]);
 
+  useEffect(() => {
+    function onExtensionCaptureMessage(event: MessageEvent) {
+      if (event.source !== window || event.data?.source !== "ozon-product-capture-extension") return;
+      if (event.data.type === "BACKGROUND_CAPTURE_JOB") setCaptureJob(event.data.job || null);
+      if (event.data.type === "START_CAPTURE_RESULT") {
+        if (captureStartTimer.current) window.clearTimeout(captureStartTimer.current);
+        captureStartTimer.current = null;
+        if (event.data.response?.ok) setNotice("后台采集已启动，浏览器会自动读取 Ozon 列表。");
+        else setError(event.data.response?.error || "后台采集启动失败。");
+      }
+      if (event.data.type === "STOP_CAPTURE_RESULT") {
+        if (event.data.response?.ok) setNotice("后台采集已停止。");
+        else setError(event.data.response?.error || "停止后台采集失败。");
+      }
+    }
+    window.addEventListener("message", onExtensionCaptureMessage);
+    return () => window.removeEventListener("message", onExtensionCaptureMessage);
+  }, []);
+
   const filteredRecords = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     if (!keyword) return records;
@@ -338,6 +363,28 @@ export default function ProductCaptureWorkspace() {
     setNotice("备注和标签已保存到浏览器本地。");
   }
 
+  function startBackgroundCapture() {
+    const keyword = captureKeyword.trim();
+    if (!keyword) {
+      setError("请输入 Ozon 商品关键词。");
+      return;
+    }
+    const target = new URL("https://www.ozon.ru/search/");
+    target.searchParams.set("text", keyword);
+    const maxItems = Math.min(Math.max(Number(captureLimit) || 100, 1), 500);
+    window.postMessage({ source: "ozon-product-capture-page", type: "START_CAPTURE", url: target.toString(), maxItems }, "*");
+    setError("");
+    setNotice("正在请求插件打开后台采集任务…");
+    if (captureStartTimer.current) window.clearTimeout(captureStartTimer.current);
+    captureStartTimer.current = window.setTimeout(() => {
+      setError("插件没有回应。请确认已安装并启用最新版插件，然后刷新此页面。");
+    }, 5000);
+  }
+
+  function stopBackgroundCapture() {
+    window.postMessage({ source: "ozon-product-capture-page", type: "STOP_CAPTURE" }, "*");
+  }
+
   const allVisibleSelected = filteredRecords.length > 0 && filteredRecords.every(record => selectedIds.includes(record.id));
 
   return (
@@ -352,6 +399,14 @@ export default function ProductCaptureWorkspace() {
         <button type="button" onClick={exportSelected} disabled={!records.length}>{selectedIds.length ? "导出选中 (" + selectedIds.length + ")" : "导出全部 Excel"}</button>
         <button type="button" className={styles.secondary} onClick={removeSelected} disabled={!selectedIds.length}>删除选中</button>
         <button type="button" className={styles.secondary} onClick={clearRecords} disabled={!records.length}>清空本地记录</button>
+      </section>
+      <section className={styles.capturePanel} aria-label="后台自动采集">
+        <div className={styles.captureIntro}><strong>后台自动采集</strong><span>浏览器保持打开时，插件会在隐藏 Ozon 标签页中滚动采集。请先安装并启用插件。</span></div>
+        <input value={captureKeyword} onChange={event => setCaptureKeyword(event.target.value)} placeholder="商品关键词，例如：无线耳机" aria-label="后台采集关键词" />
+        <input type="number" min={1} max={500} value={captureLimit} onChange={event => setCaptureLimit(Number(event.target.value))} aria-label="后台采集数量" />
+        <button type="button" onClick={startBackgroundCapture} disabled={captureJob?.status === "running"}>开始采集</button>
+        <button type="button" className={styles.secondary} onClick={stopBackgroundCapture} disabled={!captureJob || !["starting", "running"].includes(captureJob.status)}>停止</button>
+        <span className={styles.captureStatus}>{captureJob?.status === "running" ? `正在采集 ${captureJob.capturedCount} / ${captureJob.maxItems}` : captureJob?.status === "completed" ? `已完成 ${captureJob.capturedCount} 件` : captureJob?.status === "stopped" ? `已停止，已采集 ${captureJob.capturedCount} 件` : "等待开始"}</span>
       </section>
       {notice && <p className={styles.notice}>{notice}</p>}
       {error && <p className={styles.error} role="alert">{error}</p>}

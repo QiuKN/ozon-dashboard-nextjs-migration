@@ -14,6 +14,15 @@
 .toolbar button, .smallButton, .dangerButton { min-height: 36px; padding: 0 12px; border: 0; border-radius: 8px; color: #fff; background: #126b5b; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
 .toolbar button:disabled, .smallButton:disabled { cursor: not-allowed; opacity: .5; }
 .toolbar .secondary { color: #126b5b; border: 1px solid #c6d4d8; background: #fff; }
+.capturePanel { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; max-width: 1440px; margin: 0 auto 12px; padding: 13px 15px; border: 1px solid #b9d9d2; border-radius: 12px; background: #f4fbf8; }
+.captureIntro { display: grid; gap: 2px; min-width: 220px; margin-right: auto; }
+.captureIntro span, .captureStatus { color: #55716b; font-size: 12px; }
+.capturePanel input { min-height: 36px; padding: 0 10px; border: 1px solid #c6d4d8; border-radius: 8px; font: inherit; }
+.capturePanel input:first-of-type { min-width: 230px; }
+.capturePanel input[type="number"] { width: 86px; }
+.capturePanel button { min-height: 36px; padding: 0 12px; border: 0; border-radius: 8px; color: #fff; background: #126b5b; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
+.capturePanel .secondary { color: #126b5b; border: 1px solid #c6d4d8; background: #fff; }
+.capturePanel button:disabled { cursor: not-allowed; opacity: .5; }
 .notice, .error, .footer { max-width: 1440px; margin: 0 auto 12px; color: #5e6c84; }
 .error { padding: 10px 12px; border-radius: 8px; color: #a33b35; background: #fff0ee; }
 .tableCard { max-width: 1440px; margin: 0 auto; border: 1px solid #dfe8e9; border-radius: 12px; background: #fff; overflow: hidden; }
@@ -36,4 +45,4 @@
 .empty strong { color: #273b47; font-size: 16px; }
 .empty p { margin: 7px 0 0; }
 .footer { margin-top: 18px; font-size: 11px; }
-@media (max-width: 700px) { .page { padding: 22px 12px 32px; } .header { align-items: flex-start; flex-direction: column; } .nav { width: 100%; } .nav a { flex: 1; text-align: center; } .toolbar { align-items: stretch; flex-direction: column; } .toolbar input, .toolbar button { width: 100%; } }
+@media (max-width: 700px) { .page { padding: 22px 12px 32px; } .header { align-items: flex-start; flex-direction: column; } .nav { width: 100%; } .nav a { flex: 1; text-align: center; } .toolbar, .capturePanel { align-items: stretch; flex-direction: column; } .toolbar input, .toolbar button, .capturePanel input, .capturePanel button { width: 100%; } }
