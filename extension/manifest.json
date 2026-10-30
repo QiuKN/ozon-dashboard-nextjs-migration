@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Ozon 选品采集助手",
+  "version": "0.1.0",
+  "description": "用户点击后采集当前 Ozon 商品页的可见信息，并交给本地选品页保存和导出。",
+  "permissions": [],
+  "host_permissions": [
+    "https://ozon.ru/product/*",
+    "https://*.ozon.ru/product/*",
+    "https://ozon.com/product/*",
+    "https://*.ozon.com/product/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://ozon.ru/product/*",
+        "https://*.ozon.ru/product/*",
+        "https://ozon.com/product/*",
+        "https://*.ozon.com/product/*"
+      ],
+      "js": ["config.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": { "service_worker": "service-worker.js" },
+  "action": { "default_title": "打开 Ozon 选品采集页" }
+}

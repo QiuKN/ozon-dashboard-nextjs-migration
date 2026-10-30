@@ -5,7 +5,8 @@ import type { NextRequest } from "next/server";
 export function proxy(request: NextRequest) {
   if (process.env.NODE_ENV !== "production") return NextResponse.next();
   const pathname = request.nextUrl.pathname;
-  if (pathname === "/login" || pathname.startsWith("/api/auth/") || pathname.startsWith("/api/")) {
+  // Product capture is browser-local and has no account or server data to protect.
+  if (pathname === "/login" || pathname === "/product-capture" || pathname.startsWith("/api/auth/") || pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
   if (!request.cookies.has("ozon_session")) {

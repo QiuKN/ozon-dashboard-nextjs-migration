@@ -1,0 +1,38 @@
+/* The capture page is intentionally self-contained so its local-only styles do not affect the legacy dashboard. */
+.page { min-height: 100dvh; padding: 34px clamp(18px, 4vw, 64px) 48px; color: #172b4d; background: #f4f7f8; font: 14px/1.5 system-ui, sans-serif; }
+.header { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; max-width: 1440px; margin: 0 auto 24px; }
+.eyebrow { margin: 0 0 8px; color: #126b5b; font-size: 11px; font-weight: 800; letter-spacing: .14em; }
+.header h1 { margin: 0; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.04em; }
+.subtitle { margin: 8px 0 0; color: #5e6c84; }
+.nav { display: flex; flex-wrap: wrap; gap: 8px; }
+.nav a { padding: 8px 11px; border: 1px solid #c6d4d8; border-radius: 8px; color: #126b5b; background: #fff; text-decoration: none; font-size: 12px; font-weight: 700; }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; max-width: 1440px; margin: 0 auto 12px; padding: 13px 15px; border: 1px solid #dfe8e9; border-radius: 12px; background: #fff; }
+.toolbar strong { font-size: 20px; }
+.toolbar span { color: #6c7c85; }
+.toolbar input { flex: 1 1 280px; min-height: 38px; padding: 0 11px; border: 1px solid #ccd8db; border-radius: 8px; font: inherit; }
+.toolbar button, .smallButton, .dangerButton { min-height: 36px; padding: 0 12px; border: 0; border-radius: 8px; color: #fff; background: #126b5b; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
+.toolbar button:disabled, .smallButton:disabled { cursor: not-allowed; opacity: .5; }
+.toolbar .secondary { color: #126b5b; border: 1px solid #c6d4d8; background: #fff; }
+.notice, .error, .footer { max-width: 1440px; margin: 0 auto 12px; color: #5e6c84; }
+.error { padding: 10px 12px; border-radius: 8px; color: #a33b35; background: #fff0ee; }
+.tableCard { max-width: 1440px; margin: 0 auto; border: 1px solid #dfe8e9; border-radius: 12px; background: #fff; overflow: hidden; }
+.tableWrap { overflow: auto; }
+.tableCard table { width: 100%; min-width: 1060px; border-collapse: collapse; }
+.tableCard th, .tableCard td { padding: 12px 13px; border-bottom: 1px solid #edf1f2; text-align: left; vertical-align: top; }
+.tableCard th { color: #6c7c85; background: #f8fafb; font-size: 12px; white-space: nowrap; }
+.tableCard td { color: #273b47; font-size: 12px; }
+.tableCard td small, .productCell small, .productCell a { display: block; margin-top: 4px; color: #80909a; font-size: 11px; }
+.tableCard td input[type="checkbox"], .tableCard th input[type="checkbox"] { width: 16px; height: 16px; accent-color: #126b5b; }
+.productCell { display: flex; gap: 10px; min-width: 300px; }
+.productCell img, .imagePlaceholder { width: 54px; height: 54px; flex: 0 0 54px; border-radius: 8px; object-fit: cover; background: #edf5f2; }
+.imagePlaceholder { display: grid; place-items: center; color: #80909a; font-size: 10px; }
+.productCell strong { display: block; max-width: 330px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.productCell a { color: #126b5b; text-decoration: none; }
+.tableCard td > input:not([type="checkbox"]) { display: block; width: 170px; margin-bottom: 6px; padding: 7px 8px; border: 1px solid #d4dfe1; border-radius: 6px; font: inherit; font-size: 11px; }
+.smallButton, .dangerButton { min-height: 30px; margin: 0 5px 5px 0; padding: 0 9px; font-size: 11px; }
+.dangerButton { color: #a33b35; border: 1px solid #e6c7c4; background: #fff8f7; }
+.empty { display: grid; place-items: center; min-height: 260px; max-width: 1440px; margin: 0 auto; padding: 32px; border: 1px dashed #c6d4d8; border-radius: 12px; color: #6c7c85; text-align: center; }
+.empty strong { color: #273b47; font-size: 16px; }
+.empty p { margin: 7px 0 0; }
+.footer { margin-top: 18px; font-size: 11px; }
+@media (max-width: 700px) { .page { padding: 22px 12px 32px; } .header { align-items: flex-start; flex-direction: column; } .nav { width: 100%; } .nav a { flex: 1; text-align: center; } .toolbar { align-items: stretch; flex-direction: column; } .toolbar input, .toolbar button { width: 100%; } }
