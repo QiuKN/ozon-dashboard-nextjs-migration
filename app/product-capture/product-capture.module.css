@@ -6,6 +6,7 @@
 .subtitle { margin: 8px 0 0; color: #5e6c84; }
 .nav { display: flex; flex-wrap: wrap; gap: 8px; }
 .nav a { padding: 8px 11px; border: 1px solid #c6d4d8; border-radius: 8px; color: #126b5b; background: #fff; text-decoration: none; font-size: 12px; font-weight: 700; }
+.nav .download { color: #fff; border-color: #126b5b; background: #126b5b; }
 .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; max-width: 1440px; margin: 0 auto 12px; padding: 13px 15px; border: 1px solid #dfe8e9; border-radius: 12px; background: #fff; }
 .toolbar strong { font-size: 20px; }
 .toolbar span { color: #6c7c85; }

@@ -6,7 +6,8 @@ export function proxy(request: NextRequest) {
   if (process.env.NODE_ENV !== "production") return NextResponse.next();
   const pathname = request.nextUrl.pathname;
   // Product capture is browser-local and has no account or server data to protect.
-  if (pathname === "/login" || pathname === "/product-capture" || pathname.startsWith("/api/auth/") || pathname.startsWith("/api/")) {
+  // The local capture page and its static extension package must remain downloadable before login.
+  if (pathname === "/login" || pathname === "/product-capture" || pathname.startsWith("/downloads/") || pathname.startsWith("/api/auth/") || pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
   if (!request.cookies.has("ozon_session")) {
