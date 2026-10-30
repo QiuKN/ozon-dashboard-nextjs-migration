@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./product-capture.module.css";
 
 // Keep capture data in a separate browser-only database; no API route receives these records.
@@ -20,6 +20,7 @@ type ProductRecord = {
   currency: string;
   sellerName: string;
   sellerUrl: string;
+  brandName: string;
   ratingText: string;
   ratingValue: number | null;
   reviewCount: number | null;
@@ -131,6 +132,7 @@ function normalizeRecord(input: CapturedProduct): ProductRecord {
     currency: text(input.currency),
     sellerName: text(input.sellerName),
     sellerUrl: text(input.sellerUrl),
+    brandName: text(input.brandName),
     ratingText: text(input.ratingText),
     ratingValue: numberOrNull(input.ratingValue),
     reviewCount: numberOrNull(input.reviewCount),
@@ -184,6 +186,7 @@ function exportRows(records: ProductRecord[]) {
     币种: record.currency,
     卖家名称: record.sellerName,
     卖家链接: record.sellerUrl,
+    品牌: record.brandName,
     评分: record.ratingText,
     评价数: record.reviewCount ?? "",
     销量: record.salesText,
@@ -206,6 +209,7 @@ export default function ProductCaptureWorkspace() {
   const [notice, setNotice] = useState("正在读取浏览器本地选品记录…");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const importingQueue = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -237,6 +241,48 @@ export default function ProductCaptureWorkspace() {
     })();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!database) return;
+    const activeDatabase = database;
+
+    // The extension bridge delivers queued captures through window messages, keeping them out of server APIs.
+    async function importExtensionRecords(rawRecords: unknown[]) {
+      if (importingQueue.current || !rawRecords.length) return;
+      importingQueue.current = true;
+      try {
+        const existing = await readAll(activeDatabase);
+        const imported: ProductRecord[] = [];
+        for (const rawRecord of rawRecords) {
+          const incoming = normalizeRecord((rawRecord || {}) as CapturedProduct);
+          const previous = existing.find(record => record.id === incoming.id);
+          const merged = { ...incoming, note: previous?.note || incoming.note, tags: previous?.tags || incoming.tags };
+          await saveOne(activeDatabase, merged);
+          imported.push(merged);
+        }
+        if (!imported.length) return;
+        setRecords(current => {
+          const mergedById = new Map(current.map(record => [record.id, record]));
+          imported.forEach(record => mergedById.set(record.id, record));
+          return [...mergedById.values()].sort((left, right) => right.capturedAt - left.capturedAt);
+        });
+        setNotice("已自动导入 " + imported.length + " 条 Ozon 商品记录。");
+        window.postMessage({ source: "ozon-product-capture-page", type: "ACK", ids: imported.map(record => record.id) }, "*");
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "自动导入选品记录失败。");
+      } finally {
+        importingQueue.current = false;
+      }
+    }
+
+    function onExtensionMessage(event: MessageEvent) {
+      if (event.source !== window || event.data?.source !== "ozon-product-capture-extension" || event.data.type !== "QUEUE") return;
+      void importExtensionRecords(Array.isArray(event.data.records) ? event.data.records : []);
+    }
+
+    window.addEventListener("message", onExtensionMessage);
+    return () => window.removeEventListener("message", onExtensionMessage);
+  }, [database]);
 
   const filteredRecords = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -316,7 +362,7 @@ export default function ProductCaptureWorkspace() {
               <td><input type="checkbox" checked={selectedIds.includes(record.id)} onChange={event => setSelectedIds(current => event.target.checked ? [...current, record.id] : current.filter(id => id !== record.id))} aria-label={"选择 " + (record.title || record.productId || "商品")} /></td>
               <td><div className={styles.productCell}>{record.imageUrls[0] ? <img src={record.imageUrls[0]} alt="" loading="lazy" /> : <span className={styles.imagePlaceholder}>无图</span>}<div><strong>{record.title || "未读取到标题"}</strong><small>{record.productId || "没有商品 ID"}</small><a href={record.url} target="_blank" rel="noreferrer">打开 Ozon 商品页 ↗</a></div></div></td>
               <td>{record.priceText || "—"}<small>{record.currency || "币种未返回"}</small></td>
-              <td>{record.sellerName || "—"}<small>{record.ratingText || record.salesText || "暂无评分或销量"}</small></td>
+              <td>{record.sellerName || "—"}<small>{record.brandName || record.ratingText || record.salesText || "暂无品牌、评分或销量"}</small></td>
               <td>{new Date(record.capturedAt).toLocaleString("zh-CN")}<small>{record.status}</small></td>
               <td><input value={record.note} onChange={event => updateMeta(record.id, "note", event.target.value)} placeholder="备注" aria-label="商品备注" /><input value={record.tags} onChange={event => updateMeta(record.id, "tags", event.target.value)} placeholder="标签，例如：高毛利" aria-label="商品标签" /></td>
               <td><button type="button" className={styles.smallButton} onClick={() => void saveMeta(record)}>保存</button><button type="button" className={styles.dangerButton} onClick={() => void removeRecord(record.id)}>删除</button></td>

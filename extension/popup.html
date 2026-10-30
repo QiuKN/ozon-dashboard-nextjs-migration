@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ozon 自动采集设置</title>
+    <style>
+      :root { color: #172b4d; background: #f4f7f8; font: 13px/1.5 system-ui, sans-serif; }
+      body { width: 360px; margin: 0; padding: 18px; box-sizing: border-box; }
+      h1 { margin: 0; font-size: 19px; }
+      p { margin: 6px 0 14px; color: #5e6c84; }
+      fieldset { margin: 0 0 13px; padding: 11px 12px; border: 1px solid #dfe8e9; border-radius: 9px; background: #fff; }
+      legend { padding: 0 5px; color: #126b5b; font-weight: 800; }
+      label { display: block; margin: 8px 0; }
+      input[type="text"], input[type="number"] { width: 100%; box-sizing: border-box; padding: 7px 8px; border: 1px solid #c6d4d8; border-radius: 6px; color: inherit; background: #fff; }
+      .check { display: inline-flex; width: 49%; align-items: center; gap: 6px; margin: 4px 0; }
+      .row { display: flex; gap: 8px; }
+      .row label { flex: 1; }
+      button, a.button { display: inline-block; padding: 8px 11px; border: 1px solid #126b5b; border-radius: 7px; color: #fff; background: #126b5b; cursor: pointer; font: inherit; text-align: center; text-decoration: none; }
+      button.secondary, a.secondary { border-color: #c6d4d8; color: #126b5b; background: #fff; }
+      .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .status { min-height: 19px; margin: 10px 0 0; color: #126b5b; }
+      .hint { margin-top: 0; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <h1>Ozon 自动采集设置</h1>
+    <p>保存后打开 Ozon 商品详情页，符合条件的商品会自动进入本地选品页。</p>
+    <form id="settings-form">
+      <fieldset>
+        <legend>自动采集</legend>
+        <label><input id="enabled" type="checkbox"> 启用自动采集</label>
+        <p class="hint">只在商品详情页运行，不会采集搜索列表页。</p>
+      </fieldset>
+      <fieldset>
+        <legend>筛选条件</legend>
+        <label>包含分类（逗号或换行分隔）<input id="categories" type="text" placeholder="例如：手机, 美妆"></label>
+        <label>排除分类<input id="excludedCategories" type="text" placeholder="例如：配件, 二手"></label>
+        <label>排除品牌<input id="excludedBrands" type="text" placeholder="例如：Apple, Xiaomi"></label>
+        <div class="row">
+          <label>最低价格<input id="minPrice" type="number" min="0" step="0.01" placeholder="不限"></label>
+          <label>最高价格<input id="maxPrice" type="number" min="0" step="0.01" placeholder="不限"></label>
+        </div>
+        <label>最低评分<input id="minRating" type="number" min="0" max="5" step="0.1" placeholder="不限"></label>
+      </fieldset>
+      <fieldset>
+        <legend>需要保存的字段</legend>
+        <label class="check"><input data-field="title" type="checkbox">标题</label>
+        <label class="check"><input data-field="images" type="checkbox">图片链接</label>
+        <label class="check"><input data-field="price" type="checkbox">价格</label>
+        <label class="check"><input data-field="seller" type="checkbox">卖家和品牌</label>
+        <label class="check"><input data-field="rating" type="checkbox">评分和评价数</label>
+        <label class="check"><input data-field="description" type="checkbox">描述</label>
+        <label class="check"><input data-field="category" type="checkbox">分类</label>
+      </fieldset>
+      <div class="actions">
+        <button type="submit">保存设置</button>
+        <a class="button secondary" href="https://ozon-dashboard-nextjs-migration.vercel.app/product-capture" target="_blank" rel="noreferrer">打开选品页</a>
+      </div>
+      <p id="status" class="status" role="status"></p>
+    </form>
+    <script src="popup.js"></script>
+  </body>
+</html>
