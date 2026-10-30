@@ -27,6 +27,7 @@ test("shows discovered Ozon categories as choices and saves selected values", as
   let saved;
   let submit;
   let openedUrl;
+  let startedJob;
   const listeners = {};
   const elements = {
     "#settings-form": { addEventListener: (_type, callback) => { submit = callback; } },
@@ -34,6 +35,10 @@ test("shows discovered Ozon categories as choices and saves selected values", as
     "#ozonSearch": { value: "wireless earbuds" },
     "#openOzon": { addEventListener: (_type, callback) => { listeners.open = callback; } },
     "#openOzonHome": { addEventListener: (_type, callback) => { listeners.home = callback; } },
+    "#backgroundLimit": { value: "12" },
+    "#backgroundStatus": { textContent: "" },
+    "#startBackground": { addEventListener: (_type, callback) => { listeners.startBackground = callback; } },
+    "#stopBackground": { addEventListener: (_type, callback) => { listeners.stopBackground = callback; } },
     "#enabled": { checked: false },
     "#categories": makeSelect(),
     "#excludedCategories": makeSelect(),
@@ -62,10 +67,19 @@ test("shows discovered Ozon categories as choices and saves selected values", as
       query: async () => [{ id: 7 }],
       update: async (_id, { url }) => { openedUrl = url; },
       create: async ({ url }) => { openedUrl = url; }
+    },
+    runtime: {
+      sendMessage: async message => {
+        if (message.type === "START_BACKGROUND_CAPTURE") {
+          startedJob = message;
+          return { ok: true, job: { status: "running", maxItems: message.maxItems, capturedCount: 0 } };
+        }
+        return { job: null };
+      }
     }
   };
 
-  vm.runInNewContext(popupScript, { document, chrome, Promise, URL });
+  vm.runInNewContext(popupScript, { document, chrome, Promise, URL, window: { setInterval() {} } });
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(elements["#categories"].options.map(option => option.textContent), ["Electronics", "Home"]);
 
@@ -85,4 +99,10 @@ test("shows discovered Ozon categories as choices and saves selected values", as
   assert.equal(saved.enabled, false);
   assert.equal(elements["#enabled"].checked, false);
   assert.equal(openedUrl, "https://www.ozon.ru/");
+
+  await listeners.startBackground();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(startedJob.maxItems, 12);
+  assert.equal(new URL(startedJob.url).searchParams.get("text"), "wireless earbuds");
+  assert.equal(saved.enabled, true);
 });

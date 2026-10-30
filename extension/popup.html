@@ -40,6 +40,16 @@
         <p class="hint">首次使用先打开首页读取分类；该按钮会暂停采集。</p>
       </fieldset>
       <fieldset>
+        <legend>后台自动采集</legend>
+        <label>本次采集数量<input id="backgroundLimit" type="number" min="1" max="500" step="1" value="100"></label>
+        <div class="search-actions">
+          <button id="startBackground" type="button">后台开始采集</button>
+          <button id="stopBackground" class="secondary" type="button">停止采集</button>
+        </div>
+        <p id="backgroundStatus" class="status" role="status">尚未开始。</p>
+        <p class="hint">后台任务会在浏览器隐藏标签页中运行；请保持浏览器开启。</p>
+      </fieldset>
+      <fieldset>
         <legend>自动采集</legend>
         <label><input id="enabled" type="checkbox"> 启用自动采集</label>
         <p class="hint">会采集页面上已加载的商品；滚动列表后也会继续采集新出现的商品。</p>

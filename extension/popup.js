@@ -17,6 +17,7 @@
 
   const form = document.querySelector("#settings-form");
   const status = document.querySelector("#status");
+  const backgroundStatus = document.querySelector("#backgroundStatus");
   const selectedValues = id => [...document.querySelector("#" + id).selectedOptions].map(option => option.value);
   const listValue = id => document.querySelector("#" + id).value.split(/[,，\n]/).map(value => value.trim()).filter(Boolean);
   const numberValue = id => {
@@ -109,10 +110,62 @@
       .catch(() => showStatus("打开 Ozon 失败，请检查浏览器扩展权限。"));
   }
 
+  function showBackgroundJob(job) {
+    if (!job) {
+      backgroundStatus.textContent = "尚未开始。";
+      return;
+    }
+    const count = Number(job.capturedCount) || 0;
+    if (job.status === "starting" || job.status === "running") backgroundStatus.textContent = "正在后台采集：" + count + " / " + job.maxItems + " 件";
+    else if (job.status === "completed") backgroundStatus.textContent = "采集完成：" + count + " 件" + (job.reason === "list_exhausted" ? "，当前列表已加载完。" : "。");
+    else if (job.status === "stopped") backgroundStatus.textContent = "采集已停止：" + count + " 件。";
+    else backgroundStatus.textContent = "后台采集启动失败。";
+  }
+
+  function refreshBackgroundJob() {
+    chrome.runtime.sendMessage({ type: "GET_BACKGROUND_CAPTURE_JOB" })
+      .then(response => showBackgroundJob(response?.job))
+      .catch(() => undefined);
+  }
+
+  function startBackgroundCapture() {
+    const search = document.querySelector("#ozonSearch").value.trim();
+    if (!search) {
+      backgroundStatus.textContent = "请先输入商品关键词。";
+      return;
+    }
+    const target = new URL("https://www.ozon.ru/search/");
+    target.searchParams.set("text", search);
+    const maxItems = Math.min(Math.max(Number(document.querySelector("#backgroundLimit").value) || 100, 1), 500);
+    document.querySelector("#enabled").checked = true;
+    const settings = readSettings(true);
+    backgroundStatus.textContent = "正在打开后台采集页面…";
+    chrome.storage.local.set({ [SETTINGS_KEY]: settings })
+      .then(() => chrome.runtime.sendMessage({ type: "START_BACKGROUND_CAPTURE", url: target.toString(), maxItems }))
+      .then(response => {
+        if (!response?.ok) {
+          backgroundStatus.textContent = response?.error || "后台任务未能启动。";
+          return;
+        }
+        showBackgroundJob(response.job);
+      })
+      .catch(() => { backgroundStatus.textContent = "后台任务未能启动，请重新加载插件后重试。"; });
+  }
+
+  function stopBackgroundCapture() {
+    chrome.runtime.sendMessage({ type: "STOP_BACKGROUND_CAPTURE" })
+      .then(response => showBackgroundJob(response?.job))
+      .catch(() => { backgroundStatus.textContent = "停止任务失败，请重试。"; });
+  }
+
   document.querySelector("#openOzon").addEventListener("click", () => openOzon(true));
   document.querySelector("#openOzonHome").addEventListener("click", () => openOzon(false, false));
+  document.querySelector("#startBackground").addEventListener("click", startBackgroundCapture);
+  document.querySelector("#stopBackground").addEventListener("click", stopBackgroundCapture);
 
   chrome.storage.local.get([SETTINGS_KEY, CATEGORY_OPTIONS_KEY]).then(applyStoredData);
+  refreshBackgroundJob();
+  window.setInterval(refreshBackgroundJob, 1500);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local" || !changes[CATEGORY_OPTIONS_KEY]) return;
     const currentCategories = selectedValues("categories");

@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Ozon 选品采集助手",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "按筛选条件自动采集 Ozon 商品，并交给本地选品页保存和导出。",
   "minimum_chrome_version": "116",
-  "permissions": ["storage", "sidePanel"],
+  "permissions": ["storage", "sidePanel", "alarms"],
   "host_permissions": [
     "https://ozon.ru/*",
     "https://*.ozon.ru/*",

@@ -8,6 +8,7 @@
   const APP_URL = globalThis.OZON_CAPTURE_APP_URL || "https://ozon-dashboard-nextjs-migration.vercel.app/product-capture";
   const SETTINGS_KEY = "ozonCaptureSettings";
   const CATEGORY_OPTIONS_KEY = "ozonCaptureCategoryOptions";
+  const BACKGROUND_JOB_ID = new URLSearchParams(location.hash.slice(1)).get("ozonCaptureJob");
   const BUTTON_ID = "ozon-product-capture-button";
   const PANEL_ID = "ozon-product-capture-panel";
   const DEFAULT_SETTINGS = {
@@ -26,6 +27,10 @@
   let lastUrl = location.href;
   let statusButton = null;
   let queuedListCount = 0;
+  let backgroundJob = null;
+  let backgroundScrollSteps = 0;
+  let unchangedListSteps = 0;
+  let backgroundScrollTimer = null;
   const capturedListKeys = new Set();
 
   function text(value) {
@@ -268,6 +273,7 @@
 
   // Observe newly rendered cards without paging or making background requests to Ozon.
   function autoCaptureListing() {
+    if (BACKGROUND_JOB_ID && !backgroundJob) return;
     discoverCategories();
     void loadSettings().then(() => {
       if (!settings.enabled) {
@@ -276,17 +282,69 @@
       }
       for (const record of collectListingProducts(breadcrumbText())) {
         const key = record.productId || record.url;
+        if (backgroundJob && capturedListKeys.size >= backgroundJob.maxItems) break;
         if (!key || capturedListKeys.has(key) || !passesFilters(record)) continue;
         capturedListKeys.add(key);
-        chrome.runtime.sendMessage({ type: "AUTO_CAPTURE", record: applyFieldSelection(record) }).then(response => {
+        chrome.runtime.sendMessage({ type: "AUTO_CAPTURE", record: applyFieldSelection(record), jobId: backgroundJob?.id }).then(response => {
           if (!response?.ok) {
             capturedListKeys.delete(key);
             return;
           }
           queuedListCount += 1;
           if (statusButton) statusButton.textContent = "列表自动采集 · 已加入 " + queuedListCount + " 件";
+          if (backgroundJob && response.capturedCount >= backgroundJob.maxItems) finishBackgroundCapture("completed", "limit");
         }).catch(() => capturedListKeys.delete(key));
       }
+    });
+  }
+
+  function finishBackgroundCapture(status, reason) {
+    if (!backgroundJob) return;
+    const job = backgroundJob;
+    backgroundJob = null;
+    window.clearTimeout(backgroundScrollTimer);
+    chrome.runtime.sendMessage({ type: "FINISH_BACKGROUND_CAPTURE", jobId: job.id, status, reason }).catch(() => undefined);
+  }
+
+  // Scroll the hidden Ozon tab at a measured pace so its own lazy-loaded cards enter the DOM.
+  function scheduleBackgroundScroll() {
+    if (!backgroundJob || backgroundScrollTimer) return;
+    backgroundScrollTimer = window.setTimeout(() => {
+      backgroundScrollTimer = null;
+      if (!backgroundJob) return;
+      if (backgroundScrollSteps >= 60 || unchangedListSteps >= 5) {
+        finishBackgroundCapture("completed", "list_exhausted");
+        return;
+      }
+      const before = document.querySelectorAll('a[href*="/product/"]').length;
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      backgroundScrollSteps += 1;
+      backgroundScrollTimer = window.setTimeout(() => {
+        backgroundScrollTimer = null;
+        if (!backgroundJob) return;
+        const after = document.querySelectorAll('a[href*="/product/"]').length;
+        unchangedListSteps = after > before ? 0 : unchangedListSteps + 1;
+        autoCaptureListing();
+        scheduleBackgroundScroll();
+      }, 1800);
+    }, 1200);
+  }
+
+  // The background tab carries a job marker so ordinary Ozon browsing is never scrolled automatically.
+  function connectBackgroundJob(attempt = 0) {
+    if (!BACKGROUND_JOB_ID) return;
+    chrome.runtime.sendMessage({ type: "GET_BACKGROUND_CAPTURE_JOB", jobId: BACKGROUND_JOB_ID }).then(response => {
+      if (response?.job?.status === "running") {
+        backgroundJob = response.job;
+        void loadSettings().then(() => {
+          autoCaptureListing();
+          scheduleBackgroundScroll();
+        });
+        return;
+      }
+      if (attempt < 30) window.setTimeout(() => connectBackgroundJob(attempt + 1), 500);
+    }).catch(() => {
+      if (attempt < 30) window.setTimeout(() => connectBackgroundJob(attempt + 1), 500);
     });
   }
 
@@ -341,6 +399,7 @@
 
   // A short delay lets Ozon finish rendering structured data before the first automatic capture.
   window.setTimeout(() => isProductPage() ? autoCapture() : autoCaptureListing(), 1800);
+  connectBackgroundJob();
   const listObserver = new MutationObserver(() => {
     if (!isProductPage()) {
       window.clearTimeout(listObserver.timer);

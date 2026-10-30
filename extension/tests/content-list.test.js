@@ -7,7 +7,7 @@ const vm = require("node:vm");
 const contentScript = fs.readFileSync(path.join(__dirname, "..", "content.js"), "utf8");
 
 // Run the real extension script against a small page fixture without adding a DOM dependency.
-function runListing(settings) {
+function runListing(settings, backgroundJob = null) {
   const sent = [];
   const stored = { ozonCaptureSettings: settings };
   const timers = [];
@@ -52,7 +52,17 @@ function runListing(settings) {
       },
       onChanged: { addListener() {} }
     },
-    runtime: { sendMessage: async message => { sent.push(message); return { ok: true }; } }
+    runtime: {
+      sendMessage: async message => {
+        sent.push(message);
+        if (message.type === "GET_BACKGROUND_CAPTURE_JOB") return { job: backgroundJob };
+        if (message.type === "AUTO_CAPTURE" && backgroundJob) {
+          backgroundJob.capturedCount += 1;
+          return { ok: true, capturedCount: backgroundJob.capturedCount, maxItems: backgroundJob.maxItems };
+        }
+        return { ok: true };
+      }
+    }
   };
   class MutationObserver {
     observe() {}
@@ -63,8 +73,12 @@ function runListing(settings) {
     setInterval() {}
   };
   const context = {
-    chrome, document, window, MutationObserver, URL, Date, Set, Map, Promise,
-    location: { href: "https://www.ozon.ru/category/electronics-123/", pathname: "/category/electronics-123/" },
+    chrome, document, window, MutationObserver, URL, URLSearchParams, Date, Set, Map, Promise,
+    location: {
+      href: "https://www.ozon.ru/category/electronics-123/" + (backgroundJob ? "#ozonCaptureJob=" + backgroundJob.id : ""),
+      pathname: "/category/electronics-123/",
+      hash: backgroundJob ? "#ozonCaptureJob=" + backgroundJob.id : ""
+    },
     setTimeout: callback => timers.push(callback)
   };
   vm.runInNewContext(contentScript, context);
@@ -114,4 +128,24 @@ test("skips list items that do not match the selected category", async () => {
   for (const timer of run.timers) timer();
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(run.sent.filter(message => message.type === "AUTO_CAPTURE").length, 0);
+});
+
+test("captures a background job and finishes after reaching its requested count", async () => {
+  const run = runListing({
+    enabled: true,
+    categories: [],
+    excludedCategories: [],
+    excludedBrands: [],
+    minPrice: null,
+    maxPrice: null,
+    minRating: null,
+    fields: { title: true, images: true, price: true, seller: true, rating: true, description: true, category: true }
+  }, { id: "job-1", status: "running", maxItems: 1, capturedCount: 0 });
+
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+
+  const capture = run.sent.find(message => message.type === "AUTO_CAPTURE");
+  assert.equal(capture.jobId, "job-1");
+  assert.equal(run.sent.some(message => message.type === "FINISH_BACKGROUND_CAPTURE" && message.reason === "limit"), true);
 });
