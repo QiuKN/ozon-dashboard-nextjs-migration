@@ -11,6 +11,7 @@ function runListing(settings, backgroundJob = null) {
   const sent = [];
   const stored = { ozonCaptureSettings: settings };
   const timers = [];
+  const scrolls = [];
   const card = {
     innerText: "Sample electric kettle\n2 499 ₽\n4.7 120 отзывов",
     textContent: "Sample electric kettle 2 499 ₽ 4.7 120 отзывов",
@@ -69,6 +70,8 @@ function runListing(settings, backgroundJob = null) {
   }
   const window = {
     setTimeout: callback => timers.push(callback),
+    scrollBy: (_x, y) => scrolls.push(y),
+    innerHeight: 1000,
     clearTimeout() {},
     setInterval() {}
   };
@@ -82,7 +85,7 @@ function runListing(settings, backgroundJob = null) {
     setTimeout: callback => timers.push(callback)
   };
   vm.runInNewContext(contentScript, context);
-  return { sent, stored, timers };
+  return { sent, stored, timers, scrolls };
 }
 
 test("captures visible list items once and discovers the Ozon category", async () => {
@@ -111,6 +114,26 @@ test("captures visible list items once and discovers the Ozon category", async (
   assert.equal(captures[0].record.reviewCount, 120);
   assert.equal(captures[0].record.category, "Electronics");
   assert.deepEqual(JSON.parse(JSON.stringify(run.stored.ozonCaptureCategoryOptions)), [{ label: "Electronics", value: "electronics" }]);
+});
+
+test("automatically scrolls an enabled Ozon list to load more products", async () => {
+  const run = runListing({
+    enabled: true,
+    categories: [],
+    excludedCategories: [],
+    excludedBrands: [],
+    minPrice: null,
+    maxPrice: null,
+    minRating: null,
+    fields: { title: true, images: true, price: true, seller: true, rating: true, description: true, category: true }
+  });
+
+  for (let attempt = 0; attempt < 5 && !run.scrolls.length; attempt += 1) {
+    await new Promise(resolve => setImmediate(resolve));
+    run.timers.shift()?.();
+  }
+
+  assert.deepEqual(run.scrolls, [800]);
 });
 
 test("skips list items that do not match the selected category", async () => {

@@ -28,7 +28,6 @@
   let statusButton = null;
   let queuedListCount = 0;
   let backgroundJob = null;
-  let backgroundScrollSteps = 0;
   let unchangedListSteps = 0;
   let backgroundScrollTimer = null;
   const capturedListKeys = new Set();
@@ -306,27 +305,32 @@
     chrome.runtime.sendMessage({ type: "FINISH_BACKGROUND_CAPTURE", jobId: job.id, status, reason }).catch(() => undefined);
   }
 
-  // Scroll the hidden Ozon tab at a measured pace so its own lazy-loaded cards enter the DOM.
-  function scheduleBackgroundScroll() {
-    if (!backgroundJob || backgroundScrollTimer) return;
+  // Scroll one viewport at a time so Ozon can lazy-load products between steps.
+  function scheduleAutoScroll() {
+    const shouldScroll = backgroundJob || (!BACKGROUND_JOB_ID && settings.enabled && !isProductPage());
+    if (!shouldScroll || backgroundScrollTimer || typeof window.scrollBy !== "function") return;
     backgroundScrollTimer = window.setTimeout(() => {
       backgroundScrollTimer = null;
-      if (!backgroundJob) return;
-      if (backgroundScrollSteps >= 60 || unchangedListSteps >= 5) {
-        finishBackgroundCapture("completed", "list_exhausted");
+      const active = backgroundJob || (!BACKGROUND_JOB_ID && settings.enabled && !isProductPage());
+      if (!active) return;
+      if (unchangedListSteps >= 6) {
+        if (backgroundJob) finishBackgroundCapture("completed", "list_exhausted");
         return;
       }
-      const before = document.querySelectorAll('a[href*="/product/"]').length;
-      window.scrollTo(0, document.documentElement.scrollHeight);
-      backgroundScrollSteps += 1;
+      const before = collectListingProducts(breadcrumbText()).length;
+      const beforeHeight = document.documentElement.scrollHeight;
+      const viewport = Math.max(window.innerHeight || 0, document.documentElement.clientHeight || 0, 600);
+      window.scrollBy(0, Math.floor(viewport * 0.8));
       backgroundScrollTimer = window.setTimeout(() => {
         backgroundScrollTimer = null;
-        if (!backgroundJob) return;
-        const after = document.querySelectorAll('a[href*="/product/"]').length;
-        unchangedListSteps = after > before ? 0 : unchangedListSteps + 1;
+        const stillActive = backgroundJob || (!BACKGROUND_JOB_ID && settings.enabled && !isProductPage());
+        if (!stillActive) return;
+        const after = collectListingProducts(breadcrumbText()).length;
+        const heightChanged = document.documentElement.scrollHeight > beforeHeight;
+        unchangedListSteps = after > before || heightChanged ? 0 : unchangedListSteps + 1;
         autoCaptureListing();
-        scheduleBackgroundScroll();
-      }, 1800);
+        scheduleAutoScroll();
+      }, 2200);
     }, 1200);
   }
 
@@ -338,7 +342,7 @@
         backgroundJob = response.job;
         void loadSettings().then(() => {
           autoCaptureListing();
-          scheduleBackgroundScroll();
+          scheduleAutoScroll();
         });
         return;
       }
@@ -394,11 +398,21 @@
     if (area !== "local" || !changes[SETTINGS_KEY]) return;
     settings = normalizedSettings(changes[SETTINGS_KEY].newValue);
     lastAutoKey = "";
-    isProductPage() ? autoCapture() : autoCaptureListing();
+    if (isProductPage()) autoCapture();
+    else {
+      autoCaptureListing();
+      scheduleAutoScroll();
+    }
   });
 
   // A short delay lets Ozon finish rendering structured data before the first automatic capture.
-  window.setTimeout(() => isProductPage() ? autoCapture() : autoCaptureListing(), 1800);
+  window.setTimeout(() => {
+    if (isProductPage()) autoCapture();
+    else {
+      autoCaptureListing();
+      scheduleAutoScroll();
+    }
+  }, 1800);
   connectBackgroundJob();
   const listObserver = new MutationObserver(() => {
     if (!isProductPage()) {
@@ -414,7 +428,13 @@
       capturedListKeys.clear();
       queuedListCount = 0;
       if (!isProductPage()) button.textContent = "列表自动采集 · 已加入 0 件";
-      window.setTimeout(() => isProductPage() ? autoCapture() : autoCaptureListing(), 1200);
+      window.setTimeout(() => {
+        if (isProductPage()) autoCapture();
+        else {
+          autoCaptureListing();
+          scheduleAutoScroll();
+        }
+      }, 1200);
     }
   }, 2000);
 })();
