@@ -110,12 +110,20 @@
       const label = text(anchor.textContent) || text(anchor.getAttribute("aria-label")) || text(anchor.title);
       if (label && label.length < 100) labels.add(label);
     }
-    const options = [...labels].map(label => ({ label, value: label.toLowerCase() }));
+    const options = [...labels].map(label => {
+      const anchor = [...document.querySelectorAll('a[href*="/category/"]')].find(item => text(item.textContent) === label);
+      let url = "";
+      try { url = anchor && typeof anchor.href === "string" && anchor.href ? new URL(anchor.href, location.href).href : ""; } catch { url = ""; }
+      return url ? { label, value: label.toLowerCase(), url } : { label, value: label.toLowerCase() };
+    });
     if (options.length) {
       chrome.storage.local.get(CATEGORY_OPTIONS_KEY).then(result => {
         const existing = Array.isArray(result[CATEGORY_OPTIONS_KEY]) ? result[CATEGORY_OPTIONS_KEY] : [];
         const merged = new Map(existing.map(item => [item.value, item]));
-        for (const option of options) merged.set(option.value, option);
+        for (const option of options) {
+          const existingOption = merged.get(option.value);
+          merged.set(option.value, existingOption?.url ? { ...option, url: existingOption.url } : option);
+        }
         const next = [...merged.values()].sort((left, right) => left.label.localeCompare(right.label)).slice(0, 300);
         if (next.length === existing.length && next.every((item, index) => item.value === existing[index]?.value && item.label === existing[index]?.label)) return undefined;
         return chrome.storage.local.set({ [CATEGORY_OPTIONS_KEY]: next });

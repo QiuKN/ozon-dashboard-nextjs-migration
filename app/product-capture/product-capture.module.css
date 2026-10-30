@@ -17,8 +17,11 @@
 .capturePanel { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; max-width: 1440px; margin: 0 auto 12px; padding: 13px 15px; border: 1px solid #b9d9d2; border-radius: 12px; background: #f4fbf8; }
 .captureIntro { display: grid; gap: 2px; min-width: 220px; margin-right: auto; }
 .captureIntro span, .captureStatus { color: #55716b; font-size: 12px; }
+.categoryTasks { display: flex; flex: 1 1 100%; flex-wrap: wrap; gap: 8px; }
+.categoryTask { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border: 1px solid #d7e7e3; border-radius: 8px; background: #fff; font-size: 12px; }
+.categoryTask span { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.captureHint { margin: 0; color: #a33b35; font-size: 12px; }
 .capturePanel input { min-height: 36px; padding: 0 10px; border: 1px solid #c6d4d8; border-radius: 8px; font: inherit; }
-.capturePanel input:first-of-type { min-width: 230px; }
 .capturePanel input[type="number"] { width: 86px; }
 .capturePanel button { min-height: 36px; padding: 0 12px; border: 0; border-radius: 8px; color: #fff; background: #126b5b; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
 .capturePanel .secondary { color: #126b5b; border: 1px solid #c6d4d8; background: #fff; }

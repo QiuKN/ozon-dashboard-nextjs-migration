@@ -15,9 +15,20 @@
       chrome.runtime.sendMessage({ type: "ACK_QUEUE", ids: event.data.ids || [] });
       return;
     }
+    if (event.data.type === "GET_CAPTURE_CATEGORIES") {
+      chrome.storage.local.get("ozonCaptureCategoryOptions", result => {
+        window.postMessage({
+          source: "ozon-product-capture-extension",
+          type: "CAPTURE_CATEGORIES",
+          categories: Array.isArray(result.ozonCaptureCategoryOptions) ? result.ozonCaptureCategoryOptions : []
+        }, "*");
+      });
+      return;
+    }
     if (event.data.type === "START_CAPTURE") {
       chrome.runtime.sendMessage({
         type: "START_BACKGROUND_CAPTURE",
+        tasks: event.data.tasks,
         url: event.data.url,
         maxItems: event.data.maxItems
       }, response => {

@@ -6,6 +6,15 @@ const BACKGROUND_JOB_KEY = "ozonBackgroundCaptureJob";
 const MAX_QUEUE_SIZE = 500;
 const MAX_BACKGROUND_ITEMS = 500;
 const BACKGROUND_ALARM = "ozon-background-capture-timeout";
+// Seed the website panel with selectable Ozon top-level categories before a page has been visited.
+const BUILTIN_CATEGORY_OPTIONS = [
+  ["电子产品", "Электроника"], ["服装", "Одежда"], ["鞋类", "Обувь"], ["家居与园艺", "Дом и сад"],
+  ["儿童用品", "Детские товары"], ["美容与健康", "Красота и здоровье"], ["家用电器", "Бытовая техника"],
+  ["运动与休闲", "Спорт и отдых"], ["建材与装修", "Строительство и ремонт"], ["汽车用品", "Автотовары"],
+  ["食品", "Продукты питания"], ["图书", "Книги"], ["文具", "Канцтовары"], ["宠物用品", "Товары для животных"],
+  ["珠宝", "Ювелирные изделия"], ["家具", "Мебель"], ["工具", "Инструменты"], ["爱好与手工", "Хобби и творчество"],
+  ["旅行与户外", "Туризм"], ["园艺用品", "Сад и огород"], ["家居清洁", "Бытовая химия"], ["成人用品", "Товары для взрослых"]
+].map(([translated, ozonName]) => ({ label: translated + "（" + ozonName + "）", value: ozonName.toLowerCase() }));
 
 const DEFAULT_SETTINGS = {
   enabled: true,
@@ -23,9 +32,13 @@ chrome.runtime.onInstalled.addListener(() => {
   if (chrome.sidePanel?.setPanelBehavior) {
     void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
   }
-  chrome.storage.local.get(SETTINGS_KEY).then(result => {
-    if (!result[SETTINGS_KEY]) return chrome.storage.local.set({ [SETTINGS_KEY]: DEFAULT_SETTINGS });
-    return undefined;
+  chrome.storage.local.get([SETTINGS_KEY, "ozonCaptureCategoryOptions"]).then(result => {
+    const values = {};
+    if (!result[SETTINGS_KEY]) values[SETTINGS_KEY] = DEFAULT_SETTINGS;
+    if (!Array.isArray(result.ozonCaptureCategoryOptions) || !result.ozonCaptureCategoryOptions.length) {
+      values.ozonCaptureCategoryOptions = BUILTIN_CATEGORY_OPTIONS;
+    }
+    return Object.keys(values).length ? chrome.storage.local.set(values) : undefined;
   });
 });
 
@@ -84,25 +97,31 @@ async function startBackgroundCapture(message, sendResponse) {
     return;
   }
 
-  let target;
-  try {
-    target = new URL(message.url);
-  } catch {
-    sendResponse({ ok: false, error: "Ozon 搜索地址无效。" });
-    return;
-  }
-  if (target.protocol !== "https:" || !/(^|\.)ozon\.(ru|com)$/i.test(target.hostname)) {
-    sendResponse({ ok: false, error: "后台任务只允许打开 Ozon 页面。" });
-    return;
-  }
-
   const id = crypto.randomUUID();
-  const maxItems = Math.min(Math.max(Number(message.maxItems) || 100, 1), MAX_BACKGROUND_ITEMS);
-  target.hash = "ozonCaptureJob=" + id;
-  const job = { id, url: target.toString(), status: "starting", maxItems, capturedCount: 0, capturedKeys: [], startedAt: Date.now() };
+  const rawTasks = Array.isArray(message.tasks) && message.tasks.length
+    ? message.tasks
+    : [{ label: "关键词搜索", url: message.url, maxItems: message.maxItems }];
+  const tasks = rawTasks.map(task => {
+    let target;
+    try { target = new URL(task.url); } catch { return null; }
+    if (target.protocol !== "https:" || !/(^|\.)ozon\.(ru|com)$/i.test(target.hostname)) return null;
+    return {
+      label: String(task.label || "Ozon 分类").slice(0, 120),
+      url: target.toString(),
+      maxItems: Math.min(Math.max(Number(task.maxItems) || 100, 1), MAX_BACKGROUND_ITEMS)
+    };
+  }).filter(Boolean);
+  if (!tasks.length) {
+    sendResponse({ ok: false, error: "没有可用的 Ozon 分类任务。" });
+    return;
+  }
+  const job = {
+    id, tasks, taskIndex: 0, category: tasks[0].label, url: tasks[0].url,
+    status: "starting", maxItems: tasks[0].maxItems, capturedCount: 0, capturedKeys: [], startedAt: Date.now()
+  };
   await chrome.storage.local.set({ [BACKGROUND_JOB_KEY]: job });
   try {
-    const tab = await chrome.tabs.create({ url: target.toString(), active: false });
+    const tab = await openTaskTab(job);
     const latest = await chrome.storage.local.get(BACKGROUND_JOB_KEY);
     if (latest[BACKGROUND_JOB_KEY]?.id !== id || latest[BACKGROUND_JOB_KEY]?.status !== "starting") {
       await chrome.tabs.remove(tab.id).catch(() => undefined);
@@ -120,10 +139,32 @@ async function startBackgroundCapture(message, sendResponse) {
   }
 }
 
+// Open the current category in a hidden tab and keep the task marker in the URL.
+async function openTaskTab(job) {
+  const target = new URL(job.url);
+  target.hash = "ozonCaptureJob=" + job.id;
+  return chrome.tabs.create({ url: target.toString(), active: false });
+}
+
 async function finishBackgroundCapture(job, status, reason) {
   await queueWrite;
   const result = await chrome.storage.local.get(BACKGROUND_JOB_KEY);
   const current = result[BACKGROUND_JOB_KEY]?.id === job.id ? result[BACKGROUND_JOB_KEY] : job;
+  if (status === "completed" && current.taskIndex + 1 < current.tasks.length) {
+    const nextIndex = current.taskIndex + 1;
+    const nextTask = current.tasks[nextIndex];
+    const nextJob = {
+      ...current, taskIndex: nextIndex, category: nextTask.label, url: nextTask.url,
+      status: "starting", maxItems: nextTask.maxItems, capturedCount: 0, capturedKeys: [], updatedAt: Date.now()
+    };
+    await chrome.storage.local.set({ [BACKGROUND_JOB_KEY]: nextJob });
+    if (current.tabId != null) await chrome.tabs.remove(current.tabId).catch(() => undefined);
+    const tab = await openTaskTab(nextJob);
+    const runningJob = { ...nextJob, tabId: tab.id, status: "running" };
+    await chrome.storage.local.set({ [BACKGROUND_JOB_KEY]: runningJob });
+    chrome.alarms.create(BACKGROUND_ALARM, { delayInMinutes: 10 });
+    return runningJob;
+  }
   const updated = { ...current, status, reason, finishedAt: Date.now() };
   await chrome.storage.local.set({ [BACKGROUND_JOB_KEY]: updated });
   await chrome.alarms.clear(BACKGROUND_ALARM);

@@ -37,7 +37,8 @@ type ProductRecord = {
 
 type CapturedProduct = Partial<ProductRecord> & { source?: string };
 
-type BackgroundCaptureJob = { id: string; status: string; maxItems: number; capturedCount: number; reason?: string };
+type CaptureCategory = { label: string; value: string; url?: string };
+type BackgroundCaptureJob = { id: string; status: string; maxItems: number; capturedCount: number; taskIndex?: number; tasks?: Array<{ label: string; url: string; maxItems: number }>; category?: string; reason?: string };
 
 declare global {
   interface Window {
@@ -211,8 +212,8 @@ export default function ProductCaptureWorkspace() {
   const [notice, setNotice] = useState("正在读取浏览器本地选品记录…");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [captureKeyword, setCaptureKeyword] = useState("");
-  const [captureLimit, setCaptureLimit] = useState(100);
+  const [captureCategories, setCaptureCategories] = useState<CaptureCategory[]>([]);
+  const [captureLimits, setCaptureLimits] = useState<Record<string, number>>({});
   const [captureJob, setCaptureJob] = useState<BackgroundCaptureJob | null>(null);
   const importingQueue = useRef(false);
   const captureStartTimer = useRef<number | null>(null);
@@ -246,6 +247,16 @@ export default function ProductCaptureWorkspace() {
       }
     })();
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    function onCategoryMessage(event: MessageEvent) {
+      if (event.source !== window || event.data?.source !== "ozon-product-capture-extension" || event.data.type !== "CAPTURE_CATEGORIES") return;
+      setCaptureCategories(Array.isArray(event.data.categories) ? event.data.categories : []);
+    }
+    window.addEventListener("message", onCategoryMessage);
+    window.postMessage({ source: "ozon-product-capture-page", type: "GET_CAPTURE_CATEGORIES" }, "*");
+    return () => window.removeEventListener("message", onCategoryMessage);
   }, []);
 
   useEffect(() => {
@@ -364,15 +375,19 @@ export default function ProductCaptureWorkspace() {
   }
 
   function startBackgroundCapture() {
-    const keyword = captureKeyword.trim();
-    if (!keyword) {
-      setError("请输入 Ozon 商品关键词。");
+    const tasks = captureCategories
+      .map(category => ({ category, maxItems: Math.min(Math.max(Number(captureLimits[category.value]) || 0, 0), 500) }))
+      .filter(item => item.maxItems > 0)
+      .map(({ category, maxItems }) => {
+        const target = new URL(category.url || "https://www.ozon.ru/search/");
+        if (!category.url) target.searchParams.set("text", category.value);
+        return { label: category.label, url: target.toString(), maxItems };
+      });
+    if (!tasks.length) {
+      setError("请先为至少一个分类填写采集数量。");
       return;
     }
-    const target = new URL("https://www.ozon.ru/search/");
-    target.searchParams.set("text", keyword);
-    const maxItems = Math.min(Math.max(Number(captureLimit) || 100, 1), 500);
-    window.postMessage({ source: "ozon-product-capture-page", type: "START_CAPTURE", url: target.toString(), maxItems }, "*");
+    window.postMessage({ source: "ozon-product-capture-page", type: "START_CAPTURE", tasks }, "*");
     setError("");
     setNotice("正在请求插件打开后台采集任务…");
     if (captureStartTimer.current) window.clearTimeout(captureStartTimer.current);
@@ -401,12 +416,18 @@ export default function ProductCaptureWorkspace() {
         <button type="button" className={styles.secondary} onClick={clearRecords} disabled={!records.length}>清空本地记录</button>
       </section>
       <section className={styles.capturePanel} aria-label="后台自动采集">
-        <div className={styles.captureIntro}><strong>后台自动采集</strong><span>浏览器保持打开时，插件会在隐藏 Ozon 标签页中滚动采集。请先安装并启用插件。</span></div>
-        <input value={captureKeyword} onChange={event => setCaptureKeyword(event.target.value)} placeholder="商品关键词，例如：无线耳机" aria-label="后台采集关键词" />
-        <input type="number" min={1} max={500} value={captureLimit} onChange={event => setCaptureLimit(Number(event.target.value))} aria-label="后台采集数量" />
+        <div className={styles.captureIntro}><strong>按分类后台采集</strong><span>为要采集的分类填写数量，插件会自动逐个切换分类并滚动采集。</span></div>
+        <div className={styles.categoryTasks}>
+          {captureCategories.length ? captureCategories.map(category => (
+            <label key={category.value} className={styles.categoryTask}>
+              <span>{category.label}</span>
+              <input type="number" min={0} max={500} value={captureLimits[category.value] || ""} onChange={event => setCaptureLimits(current => ({ ...current, [category.value]: Number(event.target.value) }))} placeholder="采集件数" aria-label={category.label + "采集件数"} />
+            </label>
+          )) : <p className={styles.captureHint}>请先在插件侧栏打开 Ozon 页面读取分类，或刷新已安装的新版插件。</p>}
+        </div>
         <button type="button" onClick={startBackgroundCapture} disabled={captureJob?.status === "running"}>开始采集</button>
         <button type="button" className={styles.secondary} onClick={stopBackgroundCapture} disabled={!captureJob || !["starting", "running"].includes(captureJob.status)}>停止</button>
-        <span className={styles.captureStatus}>{captureJob?.status === "running" ? `正在采集 ${captureJob.capturedCount} / ${captureJob.maxItems}` : captureJob?.status === "completed" ? `已完成 ${captureJob.capturedCount} 件` : captureJob?.status === "stopped" ? `已停止，已采集 ${captureJob.capturedCount} 件` : "等待开始"}</span>
+        <span className={styles.captureStatus}>{captureJob?.status === "running" ? `正在采集 ${captureJob.category || ""}：${captureJob.capturedCount} / ${captureJob.maxItems}` : captureJob?.status === "completed" ? "全部分类采集完成" : captureJob?.status === "stopped" ? `已停止，当前分类已采集 ${captureJob.capturedCount} 件` : "等待开始"}</span>
       </section>
       {notice && <p className={styles.notice}>{notice}</p>}
       {error && <p className={styles.error} role="alert">{error}</p>}

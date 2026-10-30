@@ -89,6 +89,8 @@
     document.querySelector("#enabled").checked = settings.enabled;
     const discovered = Array.isArray(result[CATEGORY_OPTIONS_KEY]) ? result[CATEGORY_OPTIONS_KEY] : [];
     const options = [...new Map([...builtInCategoryOptions, ...discovered].map(option => [option.value, option])).values()];
+    // Persist the visible choices so the website panel can use the same category list.
+    chrome.storage.local.set({ [CATEGORY_OPTIONS_KEY]: options }).catch(() => undefined);
     setOptions("categories", options, settings.categories);
     setOptions("excludedCategories", options, settings.excludedCategories);
     setList("excludedBrands", settings.excludedBrands);
