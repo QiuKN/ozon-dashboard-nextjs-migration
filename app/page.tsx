@@ -17,7 +17,7 @@ async function Dashboard() {
     return (
       <main className="workspace">
         <header className="account-bar">
-          <AccountDataControls username={user.username} />
+          <AccountDataControls username={user.username} userId={user.id} />
         </header>
         <iframe id="dashboard" className="dashboard" title="Ozon 商家数据台" src="/legacy/index.html" allow="clipboard-read; clipboard-write" />
       </main>

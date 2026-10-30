@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const user = await userFromRequest(request);
     if (!user) return Response.json({ error: "登录状态已失效，请重新登录。" }, { status: 401 });
     const body = await request.json().catch(() => null) as { groups?: unknown } | null;
-    const allowedGroups = ["shops", "cache", "reminders", "rateLimits", "browser"];
+    const allowedGroups = ["shops", "cache", "reminders", "rateLimits", "browser", "salesReports"];
     if (!Array.isArray(body?.groups) || body.groups.length === 0 || body.groups.some(group => typeof group !== "string" || !allowedGroups.includes(group))) {
       return Response.json({ error: "请选择至少一类有效的数据再清理。" }, { status: 400 });
     }
