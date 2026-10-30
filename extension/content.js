@@ -27,6 +27,7 @@
   let lastUrl = location.href;
   let statusButton = null;
   let queuedListCount = 0;
+  let recognizedListCount = 0;
   let backgroundJob = null;
   let unchangedListSteps = 0;
   let backgroundScrollTimer = null;
@@ -149,12 +150,15 @@
     for (const anchor of document.querySelectorAll('a[href*="/product/"]')) {
       let url;
       try { url = new URL(anchor.href, location.href); } catch { continue; }
-      const match = url.pathname.match(/-(\d+)(?:\/|$)/);
+      const match = url.pathname.match(/(?:-|\/)(\d{5,})(?:\/|$)/);
       const productId = match?.[1] || "";
       if (!productId || records.has(productId)) continue;
       const card = listingCard(anchor);
       const image = card.querySelector("img");
-      const title = text(anchor.getAttribute("aria-label")) || text(anchor.title) || text(image?.alt) || text(anchor.innerText || anchor.textContent).split("\n").map(text).find(value => value.length > 12) || "";
+      const cardLines = text(card.innerText || card.textContent).split("\n").map(text);
+      const title = text(anchor.getAttribute("aria-label")) || text(anchor.title) || text(image?.alt) ||
+        text(anchor.innerText || anchor.textContent).split("\n").map(text).find(value => value.length > 12) ||
+        cardLines.find(value => value.length > 12 && !/[₽]|руб\.?|RUB|отзыв|оцен|\d+%/i.test(value)) || "";
       if (!title) continue;
       const cardText = text(card.innerText || card.textContent);
       const priceMatch = cardText.match(/([\d\s\u00a0.,]+)\s*(₽|руб\.?|RUB)/i);
@@ -229,7 +233,7 @@
 
   function passesFilters(record) {
     if (!settings.enabled) return false;
-    if (settings.categories.length && !containsTerm(record.category, settings.categories)) return false;
+    if (settings.categories.length && record.category && !containsTerm(record.category, settings.categories)) return false;
     if (containsTerm(record.category, settings.excludedCategories)) return false;
     if (containsTerm(record.brandName, settings.excludedBrands)) return false;
     if (settings.minPrice != null && (record.priceValue == null || record.priceValue < settings.minPrice)) return false;
@@ -279,7 +283,10 @@
         if (statusButton) statusButton.textContent = "自动采集已关闭";
         return;
       }
-      for (const record of collectListingProducts(breadcrumbText())) {
+      const records = collectListingProducts(breadcrumbText());
+      recognizedListCount = Math.max(recognizedListCount, records.length);
+      if (statusButton) statusButton.textContent = "列表自动采集 · 已识别 " + recognizedListCount + " 件 · 已加入 " + queuedListCount + " 件";
+      for (const record of records) {
         const key = record.productId || record.url;
         if (backgroundJob && capturedListKeys.size >= backgroundJob.maxItems) break;
         if (!key || capturedListKeys.has(key) || !passesFilters(record)) continue;
@@ -290,7 +297,7 @@
             return;
           }
           queuedListCount += 1;
-          if (statusButton) statusButton.textContent = "列表自动采集 · 已加入 " + queuedListCount + " 件";
+          if (statusButton) statusButton.textContent = "列表自动采集 · 已识别 " + recognizedListCount + " 件 · 已加入 " + queuedListCount + " 件";
           if (backgroundJob && response.capturedCount >= backgroundJob.maxItems) finishBackgroundCapture("completed", "limit");
         }).catch(() => capturedListKeys.delete(key));
       }
@@ -383,7 +390,7 @@
   statusButton = button;
   button.id = BUTTON_ID;
   button.type = "button";
-  button.textContent = isProductPage() ? "手动采集" : "列表自动采集 · 已加入 0 件";
+  button.textContent = isProductPage() ? "手动采集" : "列表自动采集 · 已识别 0 件 · 已加入 0 件";
   button.title = isProductPage() ? "自动采集已按插件设置运行；点击此处可手动采集当前商品" : "自动采集当前列表中已加载的商品，滚动页面后会继续读取新商品";
   button.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:2147483647;padding:10px 14px;border:0;border-radius:9px;color:#fff;background:#126b5b;box-shadow:0 8px 24px rgba(18,107,91,.3);cursor:pointer;font:700 13px system-ui,sans-serif";
   if (isProductPage()) button.addEventListener("click", () => showPreview(collectProduct()));
@@ -427,7 +434,10 @@
       lastAutoKey = "";
       capturedListKeys.clear();
       queuedListCount = 0;
-      if (!isProductPage()) button.textContent = "列表自动采集 · 已加入 0 件";
+      if (!isProductPage()) {
+        recognizedListCount = 0;
+        button.textContent = "列表自动采集 · 已识别 0 件 · 已加入 0 件";
+      }
       window.setTimeout(() => {
         if (isProductPage()) autoCapture();
         else {

@@ -7,17 +7,17 @@ const vm = require("node:vm");
 const contentScript = fs.readFileSync(path.join(__dirname, "..", "content.js"), "utf8");
 
 // Run the real extension script against a small page fixture without adding a DOM dependency.
-function runListing(settings, backgroundJob = null) {
+function runListing(settings, backgroundJob = null, { category = "Electronics", linkedTitle = "Sample electric kettle", imageTitle = "Sample electric kettle", cardTitle = "Sample electric kettle" } = {}) {
   const sent = [];
   const stored = { ozonCaptureSettings: settings };
   const timers = [];
   const scrolls = [];
   const card = {
-    innerText: "Sample electric kettle\n2 499 ₽\n4.7 120 отзывов",
-    textContent: "Sample electric kettle 2 499 ₽ 4.7 120 отзывов",
+    innerText: cardTitle + "\n2 499 ₽\n4.7 120 отзывов",
+    textContent: cardTitle + " 2 499 ₽ 4.7 120 отзывов",
     parentElement: null,
     querySelector: selector => selector === "img"
-      ? { alt: "Sample electric kettle", currentSrc: "https://cdn.ozon.ru/kettle.jpg", src: "https://cdn.ozon.ru/kettle.jpg" }
+      ? { alt: imageTitle, currentSrc: "https://cdn.ozon.ru/kettle.jpg", src: "https://cdn.ozon.ru/kettle.jpg" }
       : selector.includes("rating") || selector.includes("рейтинг") ? { getAttribute: () => "4.7 120 отзывов", textContent: "" } : null,
     querySelectorAll: () => [{ currentSrc: "https://cdn.ozon.ru/kettle.jpg", src: "https://cdn.ozon.ru/kettle.jpg" }]
   };
@@ -29,15 +29,15 @@ function runListing(settings, backgroundJob = null) {
     textContent: "",
     getAttribute: () => ""
   };
-  const categoryLink = { textContent: "Electronics", getAttribute: () => "", title: "" };
+  const categoryLink = { textContent: category, getAttribute: () => "", title: "" };
   const button = { style: {}, addEventListener() {} };
   const document = {
     documentElement: {},
     body: { appendChild() {} },
     createElement: () => button,
     querySelectorAll(selector) {
-      if (selector.includes("breadcrumb")) return [categoryLink];
-      if (selector.includes("/category/")) return [categoryLink];
+      if (selector.includes("breadcrumb")) return category ? [categoryLink] : [];
+      if (selector.includes("/category/")) return category ? [categoryLink] : [];
       if (selector.includes("/product/")) return [productLink];
       return [];
     }
@@ -151,6 +151,41 @@ test("skips list items that do not match the selected category", async () => {
   for (const timer of run.timers) timer();
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(run.sent.filter(message => message.type === "AUTO_CAPTURE").length, 0);
+});
+
+test("does not reject products when a selected category is unavailable on a keyword search page", async () => {
+  const run = runListing({
+    enabled: true,
+    categories: ["электроника"],
+    excludedCategories: [],
+    excludedBrands: [],
+    minPrice: null,
+    maxPrice: null,
+    minRating: null,
+    fields: { title: true, images: true, price: true, seller: true, rating: true, description: true, category: true }
+  }, null, { category: "" });
+
+  run.timers[0]?.();
+  for (let index = 0; index < 5; index += 1) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(run.sent.filter(message => message.type === "AUTO_CAPTURE").length, 1);
+});
+
+test("reads the product title from the card when its link and image have no title", async () => {
+  const run = runListing({
+    enabled: true,
+    categories: [],
+    excludedCategories: [],
+    excludedBrands: [],
+    minPrice: null,
+    maxPrice: null,
+    minRating: null,
+    fields: { title: true, images: true, price: true, seller: true, rating: true, description: true, category: true }
+  }, null, { linkedTitle: "", imageTitle: "" });
+
+  run.timers[0]?.();
+  for (let index = 0; index < 5; index += 1) await new Promise(resolve => setImmediate(resolve));
+  const capture = run.sent.find(message => message.type === "AUTO_CAPTURE");
+  assert.equal(capture.record.title, "Sample electric kettle");
 });
 
 test("captures a background job and finishes after reaching its requested count", async () => {
